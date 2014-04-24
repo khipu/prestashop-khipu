@@ -8,7 +8,6 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
 
     public function initContent()
     {
-
         $cart = $this->context->cart;
 
         $khipuPayment = new KhipuPayment();

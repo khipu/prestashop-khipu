@@ -46,8 +46,13 @@ class KhipuPaymentBankselectModuleFrontController extends ModuleFrontController
         $bankSelector = "<form method='GET' action='$action' class='form form-horizontal'>\n";
 
         foreach ($_REQUEST as $key => $value) {
-            $bankSelector .= "<input type=\"hidden\" value =\"$value\" name=\"$key\">\n";
+            if($key != 'fc' && $key != 'module' && $key != 'controller') {
+                $bankSelector .= "<input type=\"hidden\" value =\"$value\" name=\"$key\">\n";
+            }
         }
+        $bankSelector .= "<input type=\"hidden\" value =\"payment\" name=\"controller\">\n";
+        $bankSelector .= "<input type=\"hidden\" value =\"module\" name=\"fc\">\n";
+        $bankSelector .= "<input type=\"hidden\" value =\"khipupayment\" name=\"module\">\n";
 
         $send_label = 'Continuar';
         $bank_selector_label = 'Selecciona tu banco:';
