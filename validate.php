@@ -7,7 +7,7 @@ class Khipu_Postback {
 
     private $byKhipuStatus;
     private $byPrestaStatus;
-    private $version = '2.0.0';
+    private $version = '2.0.1';
 
     public function init() {
         define('_PS_ADMIN_DIR_', getcwd());
