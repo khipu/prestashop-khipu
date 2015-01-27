@@ -3,7 +3,7 @@
 if (!defined('_PS_VERSION_'))
     exit;
 
-include_once (_PS_MODULE_DIR_ . 'khipupayment/lib-khipu/src/Khipu.php');
+include_once (_PS_MODULE_DIR_ . 'khipupayment/lib/lib-khipu/src/Khipu.php');
 
 class KhipuPayment extends PaymentModule {
 
