@@ -7,7 +7,7 @@ class Khipu_Postback {
 
     private $byKhipuStatus;
     private $byPrestaStatus;
-    private $version = '2.0.1';
+    private $version = '2.0.2';
 
     public function init() {
         define('_PS_ADMIN_DIR_', getcwd());
@@ -79,22 +79,22 @@ class Khipu_Postback {
     private function validate_1_3_notification() {
         $Khipu = new Khipu();
         $Khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
-        $Khipu->setAgent('prestashop-khipu-2.0.0');
+        $Khipu->setAgent('prestashop-khipu-2.0.2');
         $khipu_service = $Khipu->loadService('GetPaymentNotification');
 
         $khipu_service->setDataFromPost();
-        $response = $khipu_service->consult();
+        $response = json_decode($khipu_service->consult());
 
-        $order = new Order(Order::getOrderByCartId($response['transaction_id']));
+        $order = new Order(Order::getOrderByCartId($response->transaction_id));
         $cart = Cart::getCartByOrderId($order->id);
-        print_r($cart);
-        if (Configuration::get('KHIPU_MERCHANTID') == $response['receiver_id'] && Tools::ps_round(floatval($cart->getOrderTotal(true, Cart::BOTH)), 0) == $response['amount']){
+        if (Configuration::get('KHIPU_MERCHANTID') == $response->receiver_id && Tools::ps_round(floatval($cart->getOrderTotal(true, Cart::BOTH)), 0) == $response->amount){
             $order->setCurrentState((int)Configuration::get('PS_OS_PAYMENT'));
             exit('Notification received correctly');
         } else {
-            exit('Notification rejected [response: '.$response['response'].'] [ReceiverID: '.Configuration::get('KHIPU_MERCHANTID').' - '.$response['receiver_id'].'] [Amount: '.Tools::ps_round(floatval($cart->getOrderTotal(true, Cart::BOTH)), 0).' - '.$response['amount'].']');
+            exit('Notification rejected [response: '.print_r($response,true).'] [ReceiverID: '.Configuration::get('KHIPU_MERCHANTID').' - '.$response->receiver_id.'] [Amount: '.Tools::ps_round(floatval($cart->getOrderTotal(true, Cart::BOTH)), 0).' - '.$response->amount.']');
         }
     }
+
 
 }
 

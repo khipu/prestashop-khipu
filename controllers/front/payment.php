@@ -23,7 +23,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
 
 
         $khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
-        $khipu->setAgent('prestashop-khipu-2.0.0');
+        $khipu->setAgent('prestashop-khipu-2.0.2');
         $khipu_service = $khipu->loadService('CreatePaymentURL');
 
         $data = array(
