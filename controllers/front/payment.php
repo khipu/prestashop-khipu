@@ -23,7 +23,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
 
 
         $khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
-        $khipu->setAgent('prestashop-khipu-2.0.2');
+        $khipu->setAgent('prestashop-khipu-2.0.3');
         $khipu_service = $khipu->loadService('CreatePaymentURL');
 
         $data = array(
@@ -51,8 +51,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
             Tools::redirect($data['url']);
             return;
         }
-
-        Tools::redirect(Context::getContext()->link->getModuleLink('khipupayment', 'terminal').'?data='.base64_encode(gzcompress($json)));
+        Tools::redirect(Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "index.php?fc=module&module={$khipuPayment->name}&controller=terminal&data=".base64_encode(gzcompress($json)));
     }
 
 }
