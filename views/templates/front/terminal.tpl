@@ -5,7 +5,8 @@
 {include file="$tpl_dir./order-steps.tpl"}
 {include file="$tpl_dir./errors.tpl"}
 
-<div id="wait-msg" class="alert alert-info">Estamos iniciando el terminal de pagos khipu, por favor espera unos segundos.<br>No
+<div id="wait-msg" class="alert alert-info">
+    Estamos iniciando el terminal de pagos khipu, por favor espera unos segundos.<br>No
     cierres esta página, una vez que completes el pago serás redirigido automáticamente.
 </div>
 <div id="khipu-chrome-extension-div" style="display: none"></div>

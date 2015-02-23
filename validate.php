@@ -7,7 +7,7 @@ class Khipu_Postback {
 
     private $byKhipuStatus;
     private $byPrestaStatus;
-    private $version = '2.0.2';
+    private $version = '2.0.3';
 
     public function init() {
         define('_PS_ADMIN_DIR_', getcwd());
@@ -79,7 +79,7 @@ class Khipu_Postback {
     private function validate_1_3_notification() {
         $Khipu = new Khipu();
         $Khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
-        $Khipu->setAgent('prestashop-khipu-2.0.2');
+        $Khipu->setAgent('prestashop-khipu-2.0.3');
         $khipu_service = $Khipu->loadService('GetPaymentNotification');
 
         $khipu_service->setDataFromPost();

@@ -21,7 +21,7 @@ class KhipuPaymentBankselectModuleFrontController extends ModuleFrontController
 
         $khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
 
-        $khipu->setAgent('prestashop-khipu-2.0.2');
+        $khipu->setAgent('prestashop-khipu-2.0.3');
         $khipu_service = $khipu->loadService('ReceiverBanks');
 
 
@@ -43,7 +43,7 @@ class KhipuPaymentBankselectModuleFrontController extends ModuleFrontController
 
         $action = Context::getContext()->link->getModuleLink('khipupayment', 'payment');
 
-        $bankSelector = "<form method='GET' action='$action' class='form form-horizontal'>\n";
+        $bankSelector = "<form method='POST' action='$action' class='form form-horizontal'>\n";
 
         foreach ($_REQUEST as $key => $value) {
             if($key != 'fc' && $key != 'module' && $key != 'controller') {
