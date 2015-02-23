@@ -12,11 +12,11 @@ class KhipuPaymentTerminalModuleFrontController extends ModuleFrontController
 
     public function initContent()
     {
-
         parent::initContent();
+        $data = gzuncompress(base64_decode($_GET['data']));
 
         $this->context->smarty->assign(array(
-            'data' => $_GET['data']
+            'data' => $data
         ));
 
         $this->addJquery();

@@ -52,9 +52,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
             return;
         }
 
-
-
-        Tools::redirect(Context::getContext()->link->getModuleLink('khipupayment', 'terminal').'?data='.$json);
+        Tools::redirect(Context::getContext()->link->getModuleLink('khipupayment', 'terminal').'?data='.base64_encode(gzcompress($json)));
     }
 
 }
