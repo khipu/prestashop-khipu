@@ -56,7 +56,7 @@ class KhipuPayment extends PaymentModule {
         if (!(Configuration::get('PS_OS_KHIPU_OPEN') > 0)) {
             // Open
             $OrderState = new OrderState(null, Configuration::get('PS_LANG_DEFAULT'));
-            $OrderState->name = "Awaiting payment";
+            $OrderState->name = "Esperando pago khipu";
             $OrderState->invoice = false;
             $OrderState->send_email = true;
             $OrderState->module_name = $this->name;
@@ -72,30 +72,6 @@ class KhipuPayment extends PaymentModule {
             $OrderState->add();
             
             Configuration::updateValue("PS_OS_KHIPU_OPEN", $OrderState->id);
-            
-            if (file_exists(dirname(dirname(dirname(__file__))) . '/img/os/10.gif'))
-                copy(dirname(dirname(dirname(__file__))) . '/img/os/10.gif', dirname(dirname(dirname(__file__))) . '/img/os/'.$OrderState->id.'.gif');
-        }
-
-        if (!(Configuration::get('PS_OS_KHIPU_AUTH') > 0)) {
-            // AUTHORIZED
-            $OrderState = new OrderState(null, Configuration::get('PS_LANG_DEFAULT'));
-            $OrderState->name = "Payment Authorized";
-            $OrderState->invoice = false;
-            $OrderState->send_email = true;
-            $OrderState->module_name = $this->name;
-            $OrderState->color = "RoyalBlue";
-            $OrderState->unremovable = true;
-            $OrderState->hidden = false;
-            $OrderState->logable = false;
-            $OrderState->delivery = false;
-            $OrderState->shipped = false;
-            $OrderState->paid = false;
-            $OrderState->deleted = false;
-            $OrderState->template = "order_changed";
-            $OrderState->add();
-            
-            Configuration::updateValue("PS_OS_KHIPU_AUTH", $OrderState->id);
             
             if (file_exists(dirname(dirname(dirname(__file__))) . '/img/os/10.gif'))
                 copy(dirname(dirname(dirname(__file__))) . '/img/os/10.gif', dirname(dirname(dirname(__file__))) . '/img/os/'.$OrderState->id.'.gif');

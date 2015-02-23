@@ -12,20 +12,6 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
         $this->display_column_left = false;
         $this->display_column_right = false;
 
-        $this->byKhipuStatus = array(
-            "OPEN" => Configuration::get('PS_OS_KHIPU_OPEN'),
-            "AUTHORIZED" => Configuration::get('PS_OS_KHIPU_AUTH'),
-            "OK" => Configuration::get('PS_OS_PAYMENT'),
-            "ERR" => Configuration::get('PS_OS_ERROR')
-        );
-
-        $this->byPrestaStatus = array(
-            Configuration::get('PS_OS_KHIPU_OPEN') => "OPEN",
-            Configuration::get('PS_OS_KHIPU_AUTH') => "AUTHORIZED",
-            Configuration::get('PS_OS_PAYMENT') => "OK",
-            Configuration::get('PS_OS_ERROR') => "ERR"
-        );
-
         parent::initContent();
 
 

@@ -1,17 +1,11 @@
-{if $status == 'OK'}
-<p>{l s='Payment received' mod='khipupayment'}
-	<br /><br /><span class="bold">{l s='The payment for your order has been received.' mod='khipupayment'}</span>
+{if $status == 'ERR'}
+<p>{l s='Pago declinado' mod='khipupayment'}
+	<br /><br /><span class="bold">{l s='El pago de su orden ha sido declinado.' mod='khipupayment'}</span>
 </p>
 {elseif $status == 'OPEN'}
-<p>{l s='Your payment is being processed' mod='khipupayment'}
-	<br /><br /><span class="bold">{l s='The order has been placed and awaiting payment verification.' mod='khipupayment'}
-	{l s='You will receive an e-mail when payment has been completed or you can track the status of your order on our site.' mod='khipupayment'}
-	</span>
-</p>
-{elseif $status == 'AUTHORIZED'}
-<p>{l s='Your payment is being processed' mod='khipupayment'}
-	<br /><br /><span class="bold">{l s='The order has been placed and awaiting payment verification.' mod='khipupayment'}
-	{l s='You will receive an e-mail when payment has been completed or you can track the status of your order on our site.' mod='khipupayment'}
+<p>{l s='Pago en verificación' mod='khipupayment'}
+	<br /><br /><span class="bold">{l s='El pago de su orden está siendo verificado.' mod='khipupayment'}
+	{l s='Recibirá un correo electrónico cuando este pedido sea procesado.' mod='khipupayment'}
 	</span>
 </p>
 {/if}
