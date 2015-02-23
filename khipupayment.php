@@ -135,8 +135,8 @@ class KhipuPayment extends PaymentModule {
         $activeShopID = (int) Context::getContext()->shop->id;
 
         if (isset($_POST['khipu_updateSettings'])) {
-            Configuration::updateValue('KHIPU_MERCHANTID', Tools::getValue('merchantID'));
-            Configuration::updateValue('KHIPU_SECRETCODE', Tools::getValue('secretCode'));
+            Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
+            Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
             Configuration::updateValue('KHIPU_PAYMENTYPE', Tools::getValue('paymentType'));
 
             $this->setModuleSettings();
