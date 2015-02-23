@@ -4,7 +4,9 @@
 class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
 {
 
-
+    function base64url_encode_compress($data) {
+        return rtrim(strtr(base64_encode(gzcompress($data)), '+/', '-_'), '=');
+    }
 
     public function initContent()
     {
@@ -35,7 +37,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
             'transaction_id' => $cart->id,
             'payer_email' => $customer->email,
             'picture_url' => '',
-            'bank_id' => $_GET['bank-id'],
+            'bank_id' => $_POST['bank-id'],
             'custom' => '',
             'notify_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "modules/{$khipuPayment->name}/validate.php"
         );
@@ -51,7 +53,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
             Tools::redirect($data['url']);
             return;
         }
-        Tools::redirect(Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "index.php?fc=module&module={$khipuPayment->name}&controller=terminal&data=".base64_encode(gzcompress($json)));
+        Tools::redirect(Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "index.php?fc=module&module={$khipuPayment->name}&controller=terminal&data=".$this->base64url_encode_compress($json));
     }
 
 }

@@ -4,6 +4,10 @@
 class KhipuPaymentTerminalModuleFrontController extends ModuleFrontController
 {
 
+    function base64url_decode_uncompress($data) {
+        return gzuncompress(base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT)));
+    }
+
     public function __construct()
     {
         parent::__construct();
@@ -13,7 +17,7 @@ class KhipuPaymentTerminalModuleFrontController extends ModuleFrontController
     public function initContent()
     {
         parent::initContent();
-        $data = gzuncompress(base64_decode($_GET['data']));
+        $data = $this->base64url_decode_uncompress($_REQUEST['data']);
 
         $this->context->smarty->assign(array(
             'data' => $data

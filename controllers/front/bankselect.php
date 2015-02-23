@@ -43,7 +43,7 @@ class KhipuPaymentBankselectModuleFrontController extends ModuleFrontController
 
         $action = Context::getContext()->link->getModuleLink('khipupayment', 'payment');
 
-        $bankSelector = "<form method='GET' action='$action' class='form form-horizontal'>\n";
+        $bankSelector = "<form method='POST' action='$action' class='form form-horizontal'>\n";
 
         foreach ($_REQUEST as $key => $value) {
             if($key != 'fc' && $key != 'module' && $key != 'controller') {
