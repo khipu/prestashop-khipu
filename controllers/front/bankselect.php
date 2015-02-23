@@ -21,7 +21,7 @@ class KhipuPaymentBankselectModuleFrontController extends ModuleFrontController
 
         $khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
 
-        $khipu->setAgent('prestashop-khipu-2.0.3');
+        $khipu->setAgent('prestashop-khipu-2.0.4;;'.Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ .';;'.Configuration::get('PS_SHOP_NAME'));
         $khipu_service = $khipu->loadService('ReceiverBanks');
 
 
