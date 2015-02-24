@@ -62,7 +62,7 @@ class Khipu_Postback {
     private function validate_1_3_notification() {
         $Khipu = new Khipu();
         $Khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
-        $Khipu->setAgent('prestashop-khipu-2.0.4');
+        $Khipu->setAgent('prestashop-khipu-2.0.4;;'.Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ .';;'.Configuration::get('PS_SHOP_NAME'));
         $khipu_service = $Khipu->loadService('GetPaymentNotification');
 
         $khipu_service->setDataFromPost();
