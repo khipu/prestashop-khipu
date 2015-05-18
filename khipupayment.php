@@ -19,7 +19,7 @@ class KhipuPayment extends PaymentModule {
         $this->description = $this->l('Transferencia bancaria usando khipu');
 
         $this->author = 'khipu';
-        $this->version = '2.0.6';
+        $this->version = '2.0.7';
         $this->tab = 'payments_gateways';
 
 
@@ -99,7 +99,8 @@ class KhipuPayment extends PaymentModule {
         
         $smarty->assign(array(
         	'logo' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
-            'paymentType' => Configuration::get('KHIPU_PAYMENTYPE')
+            'paymentType' => Configuration::get('KHIPU_PAYMENTYPE'),
+            'recommended' => Configuration::get('KHIPU_RECOMMENDED')
         ));
 
         return $this->display(__FILE__, 'views/templates/hook/payment.tpl');
@@ -114,6 +115,7 @@ class KhipuPayment extends PaymentModule {
             Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
             Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
             Configuration::updateValue('KHIPU_PAYMENTYPE', Tools::getValue('paymentType'));
+            Configuration::updateValue('KHIPU_RECOMMENDED', Tools::getValue('recommended'));
 
             $this->setModuleSettings();
             $this->checkModuleRequirements();
@@ -126,6 +128,7 @@ class KhipuPayment extends PaymentModule {
             'data_merchantid' => $this->merchantID,
             'data_secretcode' => $this->secretCode,
             'data_paymentType' => $this->paymentType,
+            'data_recommended' => $this->recommended,
             'version' => $this->version,
 	        'api_version' => Khipu::VERSION,
             'img_header' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
@@ -144,6 +147,7 @@ class KhipuPayment extends PaymentModule {
         $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
         $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
         $this->paymentType = Configuration::get('KHIPU_PAYMENTYPE');
+        $this->recommended = Configuration::get('KHIPU_RECOMMENDED');
     }
 
 }

@@ -38,9 +38,11 @@
             <select name="paymentType">
                 <option value="all" {if $data_paymentType eq "all"}selected{/if}>Todos</option>
                 <option value="simple" {if $data_paymentType eq "simple"}selected{/if}>Transferencia simplificada (con terminal de pagos khipu)</option>
-                <option value="manual" {if $data_paymentType eq "manual"}selected{/if}>Transferencia manual (normal)</option>
+                <option value="manual" {if $data_paymentType eq "manual"}selected{/if}>Transferencia normal</option>
             </select>
         </div>
+
+        <div class="margin-form"><input type="checkbox" name="recommended" {if $data_recommended}checked{/if} value="1">Marcar como opción recomendada</div>
 
 
         <center><input type="submit" name="khipu_updateSettings" value="{l s='Save Settings' mod='khipupayment'}"
