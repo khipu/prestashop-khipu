@@ -11,6 +11,7 @@ class KhipuPayment extends PaymentModule {
 
     public function __construct() {
         $this->name = 'khipupayment';
+        $this->module_key='44ce18c9f730a38ff054c6a2a535c296';
 
         // Calling the parent's constructor. This must be done before any use of the $this->l() method, and after the creation of $this->name.
         parent::__construct();
@@ -19,7 +20,7 @@ class KhipuPayment extends PaymentModule {
         $this->description = $this->l('Transferencia bancaria usando khipu');
 
         $this->author = 'khipu';
-        $this->version = '2.0.7';
+        $this->version = '2.0.8';
         $this->tab = 'payments_gateways';
 
 
