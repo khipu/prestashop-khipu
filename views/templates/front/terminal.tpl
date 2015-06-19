@@ -1,5 +1,5 @@
 {capture name=path}{l s='Seleccione el banco' mod='khipupayment'}{/capture}
-<h2>{l s='Order summary' mod='cheque'}</h2>
+<h2>{l s='Resumen del pedido' mod='khipupayment'}</h2>
 
 {assign var='current_step' value='payment'}
 {include file="$tpl_dir./order-steps.tpl"}

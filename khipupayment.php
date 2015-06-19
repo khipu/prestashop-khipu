@@ -20,7 +20,7 @@ class KhipuPayment extends PaymentModule {
         $this->description = $this->l('Transferencia bancaria usando khipu');
 
         $this->author = 'khipu';
-        $this->version = '2.1.0';
+        $this->version = '2.2.0';
         $this->tab = 'payments_gateways';
 
 
@@ -32,7 +32,7 @@ class KhipuPayment extends PaymentModule {
     }
 
     public function install() {
-        if (!parent::install() OR !$this->registerHook('payment') OR !$this->registerHook('paymentReturn'))
+        if (!parent::install() OR !$this->registerHook('payment') OR !$this->registerHook('paymentReturn') OR !$this->registerHook('displayHeader') OR !$this->registerHook('displayBackOfficeHeader') )
             return false;
 
         $this->addOrderStates();
@@ -79,6 +79,37 @@ class KhipuPayment extends PaymentModule {
         }
     }
 
+    public function hookDisplayBackOfficeHeader($params) {
+        $this->checkExpireOrders();
+    }
+
+    public function hookDisplayHeader($params)
+    {
+        $this->checkExpireOrders();
+    }
+
+    public function checkExpireOrders(){
+        if(!Configuration::get('KHIPU_LAST_ORDER_EXPIRE_RUN')){
+            Configuration::updateValue('KHIPU_LAST_ORDER_EXPIRE_RUN', 1);
+        }
+
+        if((time() - Configuration::get('KHIPU_LAST_ORDER_EXPIRE_RUN')) > 10*60 ) {
+            Configuration::updateValue('KHIPU_LAST_ORDER_EXPIRE_RUN', time());
+            $orders = Order::getOrderIdsByStatus((int)Configuration::get('PS_OS_KHIPU_OPEN'));
+            foreach($orders as $order_id) {
+                $order = new Order($order_id);
+                if((time() - strtotime($order->date_upd)) > ((int)Configuration::get('KHIPU_HOURS_TIMEOUT')) * 60 * 60 ) {
+                    echo "expire $order_id";
+                    foreach (Order::getByReference($order->reference) as $referencedOrder)
+                    {
+                        $referencedOrder->setCurrentState((int)Configuration::get('PS_OS_CANCELED'));
+                    }
+                }
+            }
+        }
+        return;
+    }
+
     public function hookPaymentReturn($params) {
         if (!$this->active)
             return;
@@ -117,6 +148,9 @@ class KhipuPayment extends PaymentModule {
             Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
             Configuration::updateValue('KHIPU_PAYMENTYPE', Tools::getValue('paymentType'));
             Configuration::updateValue('KHIPU_RECOMMENDED', Tools::getValue('recommended'));
+            if((int) Tools::getValue('hoursTimeout') > 0 ) {
+                Configuration::updateValue('KHIPU_HOURS_TIMEOUT', (int)Tools::getValue('hoursTimeout'));
+            }
 
             $this->setModuleSettings();
             $this->checkModuleRequirements();
@@ -130,6 +164,7 @@ class KhipuPayment extends PaymentModule {
             'data_secretcode' => $this->secretCode,
             'data_paymentType' => $this->paymentType,
             'data_recommended' => $this->recommended,
+            'data_hoursTimeout' => $this->hoursTimeout,
             'version' => $this->version,
 	        'api_version' => Khipu::VERSION,
             'img_header' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
@@ -141,6 +176,9 @@ class KhipuPayment extends PaymentModule {
     }
 
     private function checkModuleRequirements() {
+        if(!Configuration::get('KHIPU_HOURS_TIMEOUT')) {
+            Configuration::updateValue('KHIPU_HOURS_TIMEOUT', 6);
+        }
         $this->_errors = array();
     }
 
@@ -149,6 +187,7 @@ class KhipuPayment extends PaymentModule {
         $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
         $this->paymentType = Configuration::get('KHIPU_PAYMENTYPE');
         $this->recommended = Configuration::get('KHIPU_RECOMMENDED');
+        $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get('KHIPU_HOURS_TIMEOUT') : 3);
     }
 
 }

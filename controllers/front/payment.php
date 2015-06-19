@@ -25,7 +25,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
 
 
         $khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
-        $khipu->setAgent('prestashop-khipu-2.1.0;;'.Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ .';;'.Configuration::get('PS_SHOP_NAME'));
+        $khipu->setAgent('prestashop-khipu-2.2.0;;'.Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ .';;'.Configuration::get('PS_SHOP_NAME'));
         $khipu_service = $khipu->loadService('CreatePaymentURL');
 
         $data = array(
@@ -39,6 +39,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
             'picture_url' => '',
             'bank_id' => $_POST['bank-id'],
             'custom' => '',
+            'expires_date' => time() + ((int)Configuration::get('KHIPU_HOURS_TIMEOUT')) * 3600,
             'notify_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "modules/{$khipuPayment->name}/validate.php"
         );
         foreach ($data as $name => $value) {

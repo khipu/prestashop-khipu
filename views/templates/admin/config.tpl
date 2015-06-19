@@ -44,6 +44,10 @@
 
         <div class="margin-form"><input type="checkbox" name="recommended" {if $data_recommended}checked{/if} value="1">Marcar como opción recomendada</div>
 
+		<label for="merchantID">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
+
+		<div class="margin-form"><input type="number" size="33" id="hoursTimeout" name="hoursTimeout"
+										value="{$data_hoursTimeout}"/></div>
 
         <center><input type="submit" name="khipu_updateSettings" value="{l s='Save Settings' mod='khipupayment'}"
                        class="button" style="cursor: pointer; display:"/></center>
