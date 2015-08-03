@@ -1,12 +1,22 @@
 <?php
-
+/**
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Open Software License (OSL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://opensource.org/licenses/osl-3.0.php
+ * If you did not receive a copy of the license and are unable to
+ * obtain it through the world-wide-web, please send an email
+ * to license@prestashop.com so we can send you a copy immediately.
+ *
+ * @author    khipu <support@khipu.com>
+ * @copyright 2007-2015 khipu SpA
+ * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+ */
 
 class KhipuPaymentTerminalModuleFrontController extends ModuleFrontController
 {
-
-    function base64url_decode_uncompress($data) {
-        return gzuncompress(base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT)));
-    }
 
     public function __construct()
     {
@@ -17,11 +27,18 @@ class KhipuPaymentTerminalModuleFrontController extends ModuleFrontController
     public function initContent()
     {
         parent::initContent();
-        $data = $this->base64url_decode_uncompress($_REQUEST['data']);
-
-        $this->context->smarty->assign(array(
-            'data' => $data
-        ));
+        $this->context->smarty->assign(
+            array(
+                'data' => array(
+                    'id' => Tools::getValue('id'),
+                    'bill-id' => Tools::getValue('bill-id'),
+                    'url' => Tools::getValue('url'),
+                    'manual-url' => Tools::getValue('manual-url'),
+                    'mobile-url' => Tools::getValue('mobile-url'),
+                    'ready-for-terminal' => Tools::getValue('ready-for-terminal')
+                )
+            )
+        );
 
         $this->addJquery();
         $this->addJS('https://cdnjs.cloudflare.com/ajax/libs/atmosphere/2.1.2/atmosphere.min.js');

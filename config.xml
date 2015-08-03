@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <module>
-	<name>khipupayment</name>
-	<displayName><![CDATA[khipu]]></displayName>
-	<version><![CDATA[2.2.1]]></version>
-	<description><![CDATA[Transferencia bancaria usando khipu]]></description>
-	<author><![CDATA[khipu]]></author>
-	<tab><![CDATA[payments_gateways]]></tab>
-	<is_configurable>1</is_configurable>
-	<need_instance>1</need_instance>
-	<limited_countries></limited_countries>
+    <name>khipupayment</name>
+    <displayName><![CDATA[khipu]]></displayName>
+    <version><![CDATA[2.3.0]]></version>
+    <description><![CDATA[Transferencia bancaria usando khipu]]></description>
+    <author><![CDATA[khipu]]></author>
+    <tab><![CDATA[payments_gateways]]></tab>
+    <is_configurable>1</is_configurable>
+    <need_instance>1</need_instance>
+    <limited_countries></limited_countries>
 </module>
