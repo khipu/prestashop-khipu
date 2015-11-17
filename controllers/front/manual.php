@@ -41,43 +41,60 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
         parent::initContent();
 
         $customer = $this->context->customer;
-        //$currency = Currency::getCurrency($cart->id_currency);
 
-        $khipu = new Khipu();
 
-        $khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
-        $khipu->setAgent(
-            'prestashop-khipu-2.3.0;;' . Tools::getShopDomainSsl(
-                true,
-                true
-            ) . __PS_BASE_URI__ . ';;' . Configuration::get('PS_SHOP_NAME')
+        $configuration = new Khipu\Configuration();
+        $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
+        $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
+        $configuration->setPlatform('prestashop-khipu', '2.4.0');
+
+
+        $client = new Khipu\ApiClient($configuration);
+        $payments = new Khipu\Client\PaymentsApi($client);
+
+        $shopDomainSsl = Tools::getShopDomainSsl(
+            true,
+            true
         );
-        $khipu_service = $khipu->loadService('CreatePaymentURL');
 
-        $notify_url = Tools::getShopDomainSsl(true, true)
-            . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php";
-        $data = array(
-            'subject' => Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id,
-            'body' => '',
-            'amount' => Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), 0),
-            'return_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
-                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=ok&cartId=" . $cart->id,
-            'cancel_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
+        $currency = Currency::getCurrency($cart->id_currency);
+
+        $precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
+
+        try {
+            $createPaymentResponse = $payments->paymentsPost(Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
+                , $currency['iso_code']
+                , Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), $precision)
+                , $cart->id
+                , null
+                , null
+                , null
+                , Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
+                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=ok&cartId=" . $cart->id
+                , Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
                 . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=cancel&cartId="
-                . $cart->id,
-            'transaction_id' => $cart->id,
-            'payer_email' => $customer->email,
-            'picture_url' => '',
-            'custom' => '',
-            'expires_date' => time() + ((int)Configuration::get('KHIPU_HOURS_TIMEOUT')) * 3600,
-            'notify_url' => $notify_url
-        );
-        foreach ($data as $name => $value) {
-            $khipu_service->setParameter($name, $value);
+                . $cart->id
+                , null
+                , $shopDomainSsl . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php"
+                , '1.3'
+                , (new DateTime())->add(new DateInterval('PT'.Configuration::get('KHIPU_HOURS_TIMEOUT').'H'))
+                , null
+                , null
+                , $customer->email
+                , null
+                , null
+                , null
+                , null);
+        } catch (\Khipu\ApiException $exception) {
+            $this->context->smarty->assign(
+                                    array(
+                                            'error' => $exception->getResponseObject()
+                                        )
+                                    );
+            $this->setTemplate('khipu_error.tpl');
+            return;
         }
 
-        $data = Tools::jsonDecode($khipu_service->createUrl(), true);
-
-        Tools::redirect($data['manual-url']);
+        Tools::redirect($createPaymentResponse->getTransferUrl());
     }
 }

@@ -33,35 +33,32 @@ class KhipuPostback
 
     private function handlePOST()
     {
-        $api_version = Tools::getValue('api_version');
+        $configuration = new Khipu\Configuration();
+        $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
+        $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
+        $configuration->setPlatform('prestashop-khipu', '2.4.0');
 
-        if ($api_version == '1.2') {
-            $this->validate12Notification();
+        $client = new Khipu\ApiClient($configuration);
+        $payments = new Khipu\Client\PaymentsApi($client);
+
+        try {
+            $paymentResponse = $payments->paymentsGet(Tools::getValue('notification_token'));
+        } catch(\Khipu\ApiException $exception) {
+            error_log(print_r($exception->getResponseObject(), TRUE));
             return;
-        } else {
-            if ($api_version == '1.3') {
-                $this->validate13Notification();
-                return;
-            }
         }
 
-    }
 
-    private function validate12Notification()
-    {
-        $khipu_lib = new Khipu();
-        // No necesitamos identificar al cobrador para usar este servicio.
-        $khipu_service = $khipu_lib->loadService('VerifyPaymentNotification');
-        // Adjuntamos los valores del $_POST en el servicio.
-        $khipu_service->setDataFromPost();
-        // Hacemos una solicitud a Khipu para verificar.
-        $response = $khipu_service->verify();
-        $order = new Order(Order::getOrderByCartId(Tools::getValue('transaction_id')));
+        $order = new Order(Order::getOrderByCartId($paymentResponse->getTransactionId()));
+
         $cart = Cart::getCartByOrderId($order->id);
-        $receiver_id = Tools::getValue('receiver_id');
-        $merchant_id = Configuration::get('KHIPU_MERCHANTID');
-        if ($response['response'] == 'VERIFIED' && $merchant_id == $receiver_id
-            && Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), 0) == Tools::getValue('amount')
+
+        $currency = Currency::getCurrency($cart->id_currency);
+
+        $precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
+
+        if (Configuration::get('KHIPU_MERCHANTID') == $paymentResponse->getReceiverId()
+            && Tools::ps_round((float)($cart->getOrderTotal(true, Cart::BOTH)), $precision) == $paymentResponse->getAmount()
         ) {
             $orders = Order::getByReference($order->reference);
             foreach ($orders as $referenced_order) {
@@ -69,57 +66,19 @@ class KhipuPostback
             }
             exit('Notification received correctly');
         } else {
-
-            exit('Notification rejected [response: ' . $response['response'] . '] [ReceiverID: ' . $merchant_id . ' - '
-                . $receiver_id . '] [Amount: ' . Tools::ps_round(
-                    (float)$cart->getOrderTotal(
-                        true,
-                        Cart::BOTH
-                    ),
-                    0
-                ) . ' - '
-                . Tools::getValue('amount')
-                . ']');
-        }
-    }
-
-    private function validate13Notification()
-    {
-        $khipu_lib = new Khipu();
-        $khipu_lib->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
-        $shopDomainSsl = Tools::getShopDomainSsl(
-            true,
-            true
-        );
-        $khipu_lib->setAgent(
-            'prestashop-khipu-2.3.0;;' . $shopDomainSsl . __PS_BASE_URI__ . ';;' . Configuration::get('PS_SHOP_NAME')
-        );
-        $khipu_service = $khipu_lib->loadService('GetPaymentNotification');
-
-        $khipu_service->setDataFromPost();
-        $response = Tools::jsonDecode($khipu_service->consult());
-
-        $order = new Order(Order::getOrderByCartId($response->transaction_id));
-        $cart = Cart::getCartByOrderId($order->id);
-        if (Configuration::get('KHIPU_MERCHANTID') == $response->receiver_id
-            && Tools::ps_round((float)($cart->getOrderTotal(true, Cart::BOTH)), 0) == $response->amount
-        ) {
-            $orders = Order::getByReference($order->reference);
-            foreach ($orders as $referenced_order) {
-                $referenced_order->setCurrentState((int)Configuration::get('PS_OS_PAYMENT'));
-            }
-            exit('Notification received correctly');
-        } else {
-            exit('Notification rejected [response: ' . print_r($response, true)
+            exit('Notification rejected [response: ' . print_r($paymentResponse, true)
                 . '] [ReceiverID: ' . Configuration::get('KHIPU_MERCHANTID') . ' - '
-                . $response->receiver_id . '] [Amount: ' . Tools::ps_round(
+                . $paymentResponse->getReceiverId() . '] [Amount: ' . Tools::ps_round(
                     (float)($cart->getOrderTotal(
                         true,
                         Cart::BOTH
                     )),
-                    0
-                ) . ' - ' . $response->amount
+                    $precision
+                ) . ' - ' . $paymentResponse->getAmount()
                 . ']');
         }
+
     }
+
+
 }

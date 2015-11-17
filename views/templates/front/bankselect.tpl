@@ -57,12 +57,12 @@
         var selectedBankId = 0
         bankRootSelect.attr("disabled", "disabled");
         {foreach from=$banks item=bank}
-            {if $bank->parent eq ''}
-                bankRootSelect.append('<option value="{$bank->id|escape:'htmlall':'UTF-8'}">{$bank->name|escape:'htmlall':'UTF-8'}</option>');
-                bankOptions['{$bank->id|escape:'htmlall':'UTF-8'}'] = [];
-                bankOptions['{$bank->id|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->id|escape:'htmlall':'UTF-8'}">{$bank->type|escape:'htmlall':'UTF-8'}</option>');
+            {if $bank->getParent() eq ''}
+                bankRootSelect.append('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getName()|escape:'htmlall':'UTF-8'}</option>');
+                bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'] = [];
+                bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
             {else}
-                bankOptions['{$bank->parent|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->id|escape:'htmlall':'UTF-8'}">{$bank->type|escape:'htmlall':'UTF-8'}</option>');
+                bankOptions['{$bank->getParent()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
             {/if}
         {/foreach}
 

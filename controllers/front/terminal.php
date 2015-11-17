@@ -30,12 +30,9 @@ class KhipuPaymentTerminalModuleFrontController extends ModuleFrontController
         $this->context->smarty->assign(
             array(
                 'data' => array(
-                    'id' => Tools::getValue('id'),
-                    'bill-id' => Tools::getValue('bill-id'),
+                    'id' => Tools::getValue('payment_id'),
                     'url' => Tools::getValue('url'),
-                    'manual-url' => Tools::getValue('manual-url'),
-                    'mobile-url' => Tools::getValue('mobile-url'),
-                    'ready-for-terminal' => Tools::getValue('ready-for-terminal')
+                    'ready-for-terminal' => 'true'
                 )
             )
         );

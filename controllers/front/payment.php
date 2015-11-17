@@ -39,52 +39,69 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
 
         $customer = $this->context->customer;
 
-        $khipu = new Khipu();
+        $configuration = new Khipu\Configuration();
+        $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
+        $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
+        $configuration->setPlatform('prestashop-khipu', '2.4.0');
 
-        $khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
+
+        $client = new Khipu\ApiClient($configuration);
+        $payments = new Khipu\Client\PaymentsApi($client);
+
         $shopDomainSsl = Tools::getShopDomainSsl(
             true,
             true
         );
-        $khipu->setAgent(
-            'prestashop-khipu-2.3.0;;' . $shopDomainSsl . __PS_BASE_URI__ . ';;' . Configuration::get('PS_SHOP_NAME')
-        );
-        $khipu_service = $khipu->loadService('CreatePaymentURL');
 
-        $data = array(
-            'subject' => Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id,
-            'body' => '',
-            'amount' => Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), 0),
-            'return_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
-                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=ok&cartId=" . $cart->id,
-            'cancel_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
+
+        $currency = Currency::getCurrency($cart->id_currency);
+
+        $precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
+
+        try {
+            $createPaymentResponse = $payments->paymentsPost(
+                Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
+                , $currency['iso_code']
+                , Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), $precision)
+                , $cart->id
+                , null
+                , null
+                , Tools::getValue('bank-id')
+                , Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
+                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=ok&cartId=" . $cart->id
+                , Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
                 . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=cancel&cartId="
-                . $cart->id,
-            'transaction_id' => $cart->id,
-            'payer_email' => $customer->email,
-            'picture_url' => '',
-            'bank_id' => Tools::getValue('bank-id'),
-            'custom' => '',
-            'expires_date' => time() + ((int)Configuration::get('KHIPU_HOURS_TIMEOUT')) * 3600,
-            'notify_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php"
-        );
-        foreach ($data as $name => $value) {
-            $khipu_service->setParameter($name, $value);
-        }
-
-        $json = $khipu_service->createUrl();
-
-        $data = Tools::jsonDecode($json, true);
-
-        if (!$data['ready-for-terminal']) {
-            Tools::redirect($data['url']);
+                . $cart->id
+                , null
+                , $shopDomainSsl . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php"
+                , '1.3'
+                , (new DateTime())->add(new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H'))
+                , null
+                , null
+                , $customer->email
+                , null
+                , null
+                , null
+                , null
+            );
+        } catch (\Khipu\ApiException $exception) {
+            $this->context->smarty->assign(
+                array(
+                    'error' => $exception->getResponseObject()
+                )
+            );
+            $this->setTemplate('khipu_error.tpl');
             return;
         }
 
-        $query_string = "";
-        foreach ($data as $key => $value) {
-            $query_string .= "&$key=" . urlencode($value);
+        if (!$createPaymentResponse->getReadyForTerminal()) {
+            Tools::redirect($createPaymentResponse->getPaymentUrl());
+            return;
         }
+
+
+        $query_string = "&payment_id=" . urlencode($createPaymentResponse->getPaymentId())
+               ."&url=".urlencode($createPaymentResponse->getPaymentUrl());
 
         Tools::redirect(
             $shopDomainSsl

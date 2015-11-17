@@ -22,7 +22,7 @@ class KhipuPayment extends PaymentModule
 
     public function __construct()
     {
-        include_once(_PS_MODULE_DIR_ . 'khipupayment/lib/lib-khipu/src/Khipu.php');
+        require __DIR__ . '/vendor/autoload.php';
 
         $this->name = 'khipupayment';
         $this->module_key = '44ce18c9f730a38ff054c6a2a535c296';
@@ -35,7 +35,7 @@ class KhipuPayment extends PaymentModule
         $this->description = $this->l('Transferencia bancaria usando khipu');
 
         $this->author = 'khipu';
-        $this->version = '2.3.0';
+        $this->version = '2.4.0';
         $this->tab = 'payments_gateways';
 
         // Module settings
@@ -133,12 +133,12 @@ class KhipuPayment extends PaymentModule
 
     public function checkExpireOrders()
     {
-        if (!Configuration::get('KHIPU_LAST_orDER_EXPIRE_RUN')) {
+        if (!Configuration::get('KHIPU_LAST_ORDER_EXPIRE_RUN')) {
             Configuration::updateValue('KHIPU_LAST_orDER_EXPIRE_RUN', 1);
         }
 
-        if ((time() - Configuration::get('KHIPU_LAST_orDER_EXPIRE_RUN')) > 10 * 60) {
-            Configuration::updateValue('KHIPU_LAST_orDER_EXPIRE_RUN', time());
+        if ((time() - Configuration::get('KHIPU_LAST_ORDER_EXPIRE_RUN')) > 10 * 60) {
+            Configuration::updateValue('KHIPU_LAST_ORDER_EXPIRE_RUN', time());
             $orders = Order::getOrderIdsByStatus((int)Configuration::get('PS_OS_KHIPU_OPEN'));
             foreach ($orders as $order_id) {
                 $order = new Order($order_id);
@@ -221,7 +221,7 @@ class KhipuPayment extends PaymentModule
                 'data_recommended' => $this->recommended,
                 'data_hoursTimeout' => $this->hoursTimeout,
                 'version' => $this->version,
-                'api_version' => Khipu::VERSION,
+                'api_version' => '2.0',
                 'img_header' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
                 'khipu_notify_url' => $shopDomainSsl . __PS_BASE_URI__
                     . "index.php?fc=module&module={$this->name}&controller=validate",

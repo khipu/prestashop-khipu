@@ -28,28 +28,33 @@ class KhipuPaymentBankselectModuleFrontController extends ModuleFrontController
     {
         parent::initContent();
 
-        //$cart = $this->context->cart;
-
-        $khipu = new Khipu();
-
-        $khipu->authenticate(Configuration::get('KHIPU_MERCHANTID'), Configuration::get('KHIPU_SECRETCODE'));
-
-        $khipu->setAgent(
-            'prestashop-khipu-2.3.0;;' . Tools::getShopDomainSsl(
-                true,
-                true
-            ) . __PS_BASE_URI__ . ';;' . Configuration::get('PS_SHOP_NAME')
-        );
-        $khipu_service = $khipu->loadService('ReceiverBanks');
+        $configuration = new Khipu\Configuration();
+        $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
+        $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
+        $configuration->setPlatform('prestashop-khipu', '2.4.0');
 
 
-        $banks = Tools::jsonDecode($khipu_service->consult());
+        $client = new Khipu\ApiClient($configuration);
+        $banks = new Khipu\Client\BanksApi($client);
+
+
+        try {
+            $banksResponse = $banks->banksGet();
+        } catch (\Khipu\ApiException $exception) {
+            $this->context->smarty->assign(
+                array(
+                    'error' => $exception->getResponseObject()
+                )
+            );
+            $this->setTemplate('khipu_error.tpl');
+            return;
+        }
 
         $this->context->smarty->assign(
             array(
                 'action' => Context::getContext()->link->getModuleLink('khipupayment', 'payment'),
                 'request' => $_REQUEST,
-                'banks' => $banks->banks
+                'banks' => $banksResponse->getBanks()
             )
         );
 
