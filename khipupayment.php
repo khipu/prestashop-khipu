@@ -23,7 +23,7 @@ class KhipuPayment extends PaymentModule
     public function __construct()
     {
         require __DIR__ . '/vendor/autoload.php';
-
+        
         $this->name = 'khipupayment';
         $this->module_key = '44ce18c9f730a38ff054c6a2a535c296';
 
@@ -35,7 +35,7 @@ class KhipuPayment extends PaymentModule
         $this->description = $this->l('Transferencia bancaria usando khipu');
 
         $this->author = 'khipu';
-        $this->version = '2.4.0';
+        $this->version = '2.5.0';
         $this->tab = 'payments_gateways';
 
         // Module settings
@@ -139,18 +139,34 @@ class KhipuPayment extends PaymentModule
 
         if ((time() - Configuration::get('KHIPU_LAST_ORDER_EXPIRE_RUN')) > 10 * 60) {
             Configuration::updateValue('KHIPU_LAST_ORDER_EXPIRE_RUN', time());
-            $orders = Order::getOrderIdsByStatus((int)Configuration::get('PS_OS_KHIPU_OPEN'));
+            $orders = $this->getOrderIdsByStatus((int)Configuration::get('PS_OS_KHIPU_OPEN'));
             foreach ($orders as $order_id) {
                 $order = new Order($order_id);
                 if ((time() - strtotime($order->date_upd)) > ((int)Configuration::get('KHIPU_HOURS_TIMEOUT')) * 60 * 60
                 ) {
-                    echo "expire $order_id";
                     foreach (Order::getByReference($order->reference) as $referencedOrder) {
                         $referencedOrder->setCurrentState((int)Configuration::get('PS_OS_CANCELED'));
                     }
                 }
             }
+            $orders = $this->getOrderIdsByStatus((int)Configuration::get('PS_OS_CANCELED'));
+            error_log(print_r($orders, TRUE));
         }
+    }
+    public function getOrderIdsByStatus($id_order_state)
+    {
+        $sql = 'SELECT id_order
+                                FROM '._DB_PREFIX_.'orders o
+                                WHERE o.`current_state` = '.(int)$id_order_state.'
+                                '.Shop::addSqlRestriction(false, 'o').'
+                                ORDER BY invoice_date ASC';
+        $result = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS($sql);
+
+        $orders = array();
+        foreach ($result as $order) {
+            $orders[] = (int)$order['id_order'];
+        }
+        return $orders;
     }
 
     public function hookDisplayHeader($params)

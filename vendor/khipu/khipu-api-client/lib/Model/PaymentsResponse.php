@@ -1,6 +1,6 @@
 <?php
 /**
- * PaymentResponse
+ * PaymentsResponse
  *
  * PHP version 5
  *
@@ -35,7 +35,7 @@ namespace Khipu\Model;
 
 use \ArrayAccess;
 /**
- * PaymentResponse Class Doc Comment
+ * PaymentsResponse Class Doc Comment
  *
  * @category    Class
  * @description 
@@ -44,7 +44,7 @@ use \ArrayAccess;
  * @license     http://www.apache.org/licenses/LICENSE-2.0 Apache Licene v2
  * @link        https://github.com/swagger-api/swagger-codegen
  */
-class PaymentResponse implements ArrayAccess
+class PaymentsResponse implements ArrayAccess
 {
     /**
       * Array of property to type mappings. Used for (de)serialization 
