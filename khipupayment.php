@@ -23,7 +23,7 @@ class KhipuPayment extends PaymentModule
     public function __construct()
     {
         require __DIR__ . '/vendor/autoload.php';
-        
+
         $this->name = 'khipupayment';
         $this->module_key = '44ce18c9f730a38ff054c6a2a535c296';
 
@@ -35,7 +35,7 @@ class KhipuPayment extends PaymentModule
         $this->description = $this->l('Transferencia bancaria usando khipu');
 
         $this->author = 'khipu';
-        $this->version = '2.5.0';
+        $this->version = '2.5.1';
         $this->tab = 'payments_gateways';
 
         // Module settings

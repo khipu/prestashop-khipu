@@ -42,7 +42,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', '2.5.0');
+        $configuration->setPlatform('prestashop-khipu', '2.5.1');
 
 
         $client = new Khipu\ApiClient($configuration);
@@ -57,6 +57,12 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
         $currency = Currency::getCurrency($cart->id_currency);
 
         $precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
+
+
+        $interval = new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H');
+        $timeout = new DateTime('now');
+        $timeout->add($interval);
+
 
         try {
             $createPaymentResponse = $payments->paymentsPost(
@@ -75,7 +81,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
                 , null
                 , $shopDomainSsl . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php"
                 , '1.3'
-                , (new DateTime())->add(new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H'))
+                , $timeout
                 , null
                 , null
                 , $customer->email
