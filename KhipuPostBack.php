@@ -36,7 +36,7 @@ class KhipuPostback
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', '2.5.1');
+        $configuration->setPlatform('prestashop-khipu', '2.5.2');
 
         $client = new Khipu\ApiClient($configuration);
         $payments = new Khipu\Client\PaymentsApi($client);
@@ -47,7 +47,6 @@ class KhipuPostback
             error_log(print_r($exception->getResponseObject(), TRUE));
             return;
         }
-
 
         $order = new Order(Order::getOrderByCartId($paymentResponse->getTransactionId()));
 
@@ -62,7 +61,9 @@ class KhipuPostback
         ) {
             $orders = Order::getByReference($order->reference);
             foreach ($orders as $referenced_order) {
-                $referenced_order->setCurrentState((int)Configuration::get('PS_OS_PAYMENT'));
+                if($referenced_order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+                    $referenced_order->setCurrentState((int)Configuration::get('PS_OS_PAYMENT'));
+                }
             }
             exit('Notification received correctly');
         } else {

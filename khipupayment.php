@@ -35,7 +35,7 @@ class KhipuPayment extends PaymentModule
         $this->description = $this->l('Transferencia bancaria usando khipu');
 
         $this->author = 'khipu';
-        $this->version = '2.5.1';
+        $this->version = '2.5.2';
         $this->tab = 'payments_gateways';
 
         // Module settings
