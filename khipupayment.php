@@ -35,7 +35,7 @@ class KhipuPayment extends PaymentModule
         $this->description = $this->l('Transferencia bancaria usando khipu');
 
         $this->author = 'khipu';
-        $this->version = '2.5.2';
+        $this->version = '2.5.3';
         $this->tab = 'payments_gateways';
 
         // Module settings
@@ -200,7 +200,8 @@ class KhipuPayment extends PaymentModule
             array(
                 'logo' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
                 'paymentType' => Configuration::get('KHIPU_PAYMENTYPE'),
-                'recommended' => Configuration::get('KHIPU_RECOMMENDED')
+                'recommended' => Configuration::get('KHIPU_RECOMMENDED'),
+                'merchantID'  => Configuration::get('KHIPU_MERCHANTID')
             )
         );
 

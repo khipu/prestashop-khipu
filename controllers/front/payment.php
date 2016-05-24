@@ -42,7 +42,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', '2.5.2');
+        $configuration->setPlatform('prestashop-khipu', '2.5.3');
 
 
         $client = new Khipu\ApiClient($configuration);
@@ -101,7 +101,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
         }
 
         if (!$createPaymentResponse->getReadyForTerminal()) {
-            Tools::redirect($createPaymentResponse->getPaymentUrl());
+            Tools::redirect($createPaymentResponse->getTransferUrl());
             return;
         }
 

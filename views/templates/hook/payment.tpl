@@ -19,7 +19,7 @@
     <p class="payment_module">
         <a href="{$link->getModuleLink('khipupayment', 'bankselect')|escape:'htmlall':'UTF-8'}"
            title="{l s='Transferencia simplificada' mod='khipupayment'}">
-            <img src="//s3.amazonaws.com/static.khipu.com/buttons/2015/150x50-transparent.png"
+            <img src="//bi.khipu.com/150x50/capsule/khipu/transparent/{$merchantID}"
                  alt="{l s='Transferencia simplificada' mod='khipupayment'}"/>
             {l s='Transferencia simplificada' mod='khipupayment'} {if $recommended}{l s='(Recomendada)' mod='khipupayment'}{/if}
         </a>
@@ -29,7 +29,7 @@
     <p class="payment_module">
         <a href="{$link->getModuleLink('khipupayment', 'manual')|escape:'htmlall':'UTF-8'}"
            title="{l s='Transferencia bancaria usando khipu' mod='khipupayment'}">
-            <img src="//s3.amazonaws.com/static.khipu.com/buttons/2015/150x50-normal-transparent.png"
+            <img src="//bi.khipu.com/150x50/capsule/transfer/transparent/{$merchantID}"
                  alt="{l s='Transferencia normal' mod='khipupayment'}"/>
             {l s='Transferencia normal' mod='khipupayment'} {if $paymentType eq "manual" && $recommended}{l s='(Recomendada)' mod='khipupayment'}{/if}
         </a>

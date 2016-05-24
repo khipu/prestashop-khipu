@@ -51,10 +51,10 @@
 <script>
     (function ($) {
         var messages = [];
-        var bankRootSelect = $('#root-bank')
-        var bankOptions = []
-        var selectedRootBankId = 0
-        var selectedBankId = 0
+        var bankRootSelect = $('#root-bank');
+        var bankOptions = [];
+        var selectedRootBankId = 0;
+        var selectedBankId = 0;
         bankRootSelect.attr("disabled", "disabled");
         {foreach from=$banks item=bank}
             {if $bank->getParent() eq ''}
@@ -68,7 +68,7 @@
 
         function updateBankOptions(rootId, bankId) {
             if (rootId) {
-                $('#root-bank').val(rootId)
+                $('#root-bank').val(rootId);
             }
 
             var idx = $('#root-bank :selected').val();

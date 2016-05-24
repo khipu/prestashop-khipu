@@ -23,12 +23,13 @@
 {include file="$tpl_dir./errors.tpl"}
 
 <div id="wait-msg" class="alert alert-info">
-    Estamos iniciando el terminal de pagos khipu, por favor espera unos segundos.<br>No
-    cierres esta página, una vez que completes el pago serás redirigido automáticamente.
+    Estamos iniciando la aplicación khipu, por favor espera unos segundos.<br>
+    No cierres esta página, una vez que completes el pago serás redirigido automáticamente.<br><br>
+    Si pasado unos segundos no se ha abierto la aplicación<br><a href="javascript:openKhipu();" class="btn btn-default">Pincha este botón para abrirla</a>
 </div>
 <div id="khipu-chrome-extension-div" style="display: none"></div>
 <script>
-    window.onload = function () {ldelim}
+    function openKhipu() {ldelim}
         KhipuLib.onLoad({ldelim}
                     data:{ldelim}
                     {foreach from=$data item=value key=key}
@@ -36,6 +37,7 @@
                     {/foreach}
                         {rdelim}
                     {rdelim}
-        )
+        );
         {rdelim}
+    window.onload = openKhipu;
 </script>
