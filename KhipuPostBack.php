@@ -18,6 +18,8 @@
 class KhipuPostback
 {
 
+    const PLUGIN_VERSION = '2.5.4';
+
     public function init()
     {
 
@@ -36,7 +38,7 @@ class KhipuPostback
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', KhipuPayment::PLUGIN_VERSION);
+        $configuration->setPlatform('prestashop-khipu', KhipuPostback::PLUGIN_VERSION);
 
         $client = new Khipu\ApiClient($configuration);
         $payments = new Khipu\Client\PaymentsApi($client);
