@@ -36,7 +36,7 @@ class KhipuPostback
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', '2.5.3');
+        $configuration->setPlatform('prestashop-khipu', KhipuPayment::PLUGIN_VERSION);
 
         $client = new Khipu\ApiClient($configuration);
         $payments = new Khipu\Client\PaymentsApi($client);
@@ -57,6 +57,7 @@ class KhipuPostback
         $precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
 
         if (Configuration::get('KHIPU_MERCHANTID') == $paymentResponse->getReceiverId()
+            && $paymentResponse->getStatus() == 'done'
             && Tools::ps_round((float)($cart->getOrderTotal(true, Cart::BOTH)), $precision) == $paymentResponse->getAmount()
         ) {
             $orders = Order::getByReference($order->reference);

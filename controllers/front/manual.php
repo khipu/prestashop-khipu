@@ -46,7 +46,7 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', '2.5.3');
+        $configuration->setPlatform('prestashop-khipu', KhipuPayment::PLUGIN_VERSION);
 
 
         $client = new Khipu\ApiClient($configuration);
