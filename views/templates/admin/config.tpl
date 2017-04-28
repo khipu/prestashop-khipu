@@ -41,7 +41,6 @@
                 <p>{$errors.merchantERR|escape:'htmlall':'UTF-8'}</p>
             </div>
         {/if}
-
         <label for="merchantID">{l s='ID Cobrador' mod='khipupayment'}</label>
 
         <div class="margin-form"><input type="text" size="33" id="merchantID" name="merchantID"
@@ -54,17 +53,16 @@
         <label for="secretCode">{l s='Tipos de pago habilitados' mod='khipupayment'}</label>
 
         <div class="margin-form">
-            <select name="paymentType">
-                <option value="all" {if $data_paymentType eq "all"}selected{/if}>Todos</option>
-                <option value="simple" {if $data_paymentType eq "simple"}selected{/if}>Transferencia simplificada (con
-                    terminal de pagos khipu)
-                </option>
-                <option value="manual" {if $data_paymentType eq "manual"}selected{/if}>Transferencia normal</option>
-            </select>
-        </div>
-
-        <div class="margin-form"><input type="checkbox" name="recommended" {if $data_recommended}checked{/if} value="1">Marcar
-            como opción recomendada
+	    {if $paymentMethodAvailable["simpleTransfer"]}
+		<input type="checkbox" name="simpleTransfer" {if $data_simpleTransfer}checked{/if} value="1"> Transferencia simplificada (con
+                    terminal de pagos khipu)<br>
+	    {/if}
+	    {if $paymentMethodAvailable["regularTransfer"]}
+		<input type="checkbox" name="regularTransfer" {if $data_regularTransfer}checked{/if} value="1"> Transferencia normal<br>
+	    {/if}
+	    {if $paymentMethodAvailable["payme"]}
+		<input type="checkbox" name="payme" {if $data_payme}checked{/if} value="1"> Pago con Tarjeta bancaria<br>
+	    {/if}
         </div>
 
         <label for="merchantID">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>

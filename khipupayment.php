@@ -18,7 +18,7 @@
 class KhipuPayment extends PaymentModule
 {
     
-    const PLUGIN_VERSION = '2.5.5';
+    const PLUGIN_VERSION = '2.6.0';
 
     protected $errors = array();
 
@@ -34,7 +34,7 @@ class KhipuPayment extends PaymentModule
         parent::__construct();
 
         $this->displayName = $this->l('khipu');
-        $this->description = $this->l('Transferencia bancaria usando khipu');
+        $this->description = $this->l('Recibe pagos con khipu');
 
         $this->author = 'khipu';
         $this->version = KhipuPayment::PLUGIN_VERSION;
@@ -51,8 +51,10 @@ class KhipuPayment extends PaymentModule
     {
         $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
         $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
-        $this->paymentType = Configuration::get('KHIPU_PAYMENTYPE');
-        $this->recommended = Configuration::get('KHIPU_RECOMMENDED');
+        $this->simpleTransfer = Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED');
+        $this->regularTransfer = Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED');
+        $this->payme = Configuration::get('KHIPU_PAYME_ENABLED');
+
         $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get(
             'KHIPU_HOURS_TIMEOUT'
         ) : 3);
@@ -201,8 +203,9 @@ class KhipuPayment extends PaymentModule
         $this->context->smarty->assign(
             array(
                 'logo' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
-                'paymentType' => Configuration::get('KHIPU_PAYMENTYPE'),
-                'recommended' => Configuration::get('KHIPU_RECOMMENDED'),
+                'simpleTransfer' => Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED'),
+                'regularTransfer' => Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED'),
+                'payme' => Configuration::get('KHIPU_PAYME_ENABLED'),
                 'merchantID'  => Configuration::get('KHIPU_MERCHANTID')
             )
         );
@@ -217,27 +220,46 @@ class KhipuPayment extends PaymentModule
 
         if (Tools::getIsset('khipu_updateSettings')) {
             Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
-            Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
-            Configuration::updateValue('KHIPU_PAYMENTYPE', Tools::getValue('paymentType'));
-            Configuration::updateValue('KHIPU_RECOMMENDED', Tools::getValue('recommended'));
+	    Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
+
+
+            Configuration::updateValue('KHIPU_SIMPLE_TRANSFER_ENABLED', Tools::getValue('simpleTransfer'));
+            Configuration::updateValue('KHIPU_REGULAR_TRANSFER_ENABLED', Tools::getValue('regularTransfer'));
+            Configuration::updateValue('KHIPU_PAYME_ENABLED', Tools::getValue('payme'));
+
             if ((int)Tools::getValue('hoursTimeout') > 0) {
                 Configuration::updateValue('KHIPU_HOURS_TIMEOUT', (int)Tools::getValue('hoursTimeout'));
             }
 
             $this->setModuleSettings();
-            $this->checkModuleRequirements();
+	    $this->checkModuleRequirements();
+	}
 
-        }
+	$paymentMethodAvailable['simpleTransfer'] = false;
+	$paymentMethodAvailable['regularTransfer'] = false;
+	$paymentMethodAvailable['payme'] = false;
+
+	if($this->context->currency->iso_code == 'CLP'){
+		$paymentMethodAvailable['simpleTransfer'] = true;
+		$paymentMethodAvailable['regularTransfer'] = true;
+	}
+
+	if($this->context->currency->iso_code == 'BOB'){
+		$paymentMethodAvailable['payme'] = true;
+	}
+
 
         $shopDomainSsl = Tools::getShopDomainSsl(true, true);
         $this->context->smarty->assign(
-            array(
+	array(
+		'paymentMethodAvailable' => $paymentMethodAvailable,
                 'errors' => $this->errors,
                 'post_url' => $_SERVER['REQUEST_URI'],
                 'data_merchantid' => $this->merchantID,
-                'data_secretcode' => $this->secretCode,
-                'data_paymentType' => $this->paymentType,
-                'data_recommended' => $this->recommended,
+		'data_secretcode' => $this->secretCode,
+		'data_simpleTransfer' => $this->simpleTransfer,
+		'data_regularTransfer' => $this->regularTransfer,
+		'data_payme' => $this->payme,
                 'data_hoursTimeout' => $this->hoursTimeout,
                 'version' => $this->version,
                 'api_version' => '2.0',
