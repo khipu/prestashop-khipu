@@ -58,6 +58,6 @@ class KhipuPaymentBankselectModuleFrontController extends ModuleFrontController
             )
         );
 
-        $this->setTemplate('bankselect.tpl');
+        $this->setTemplate('module:khipupayment/views/templates/front/bankselect.tpl');
     }
 }

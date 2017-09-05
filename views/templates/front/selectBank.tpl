@@ -14,17 +14,17 @@
 *  @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
 *  International Registered Trademark & Property of PrestaShop SA
 *}
-
+{extends "$layout"}
+{block name="content"}
 {capture name=path}{l s='Seleccione el banco' mod='khipupayment'}{/capture}
 <h2>{l s='Resumen del pedido' mod='khipupayment'}</h2>
 
 {assign var='current_step' value='payment'}
-{include file="$tpl_dir./order-steps.tpl"}
-{include file="$tpl_dir./errors.tpl"}
+
 
 
 <h2>{l s='Escoge el banco para pagar' mod='khipupayment'}</h2>
-
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
 <form method='POST' action='{$action|escape:'htmlall':'UTF-8'}' class='form form-horizontal'>
 {foreach from=$request item=value key=key}
     {if $key neq "fc" && $key neq "module" && $key neq "controller"}
@@ -49,24 +49,7 @@
     </div>
 </form>
 <script>
-    (function ($) {
-        var messages = [];
-        var bankRootSelect = $('#root-bank');
-        var bankOptions = [];
-        var selectedRootBankId = 0;
-        var selectedBankId = 0;
-        bankRootSelect.attr("disabled", "disabled");
-        {foreach from=$banks item=bank}
-            {if $bank->getParent() eq ''}
-                bankRootSelect.append('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getName()|escape:'htmlall':'UTF-8'}</option>');
-                bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'] = [];
-                bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
-            {else}
-                bankOptions['{$bank->getParent()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
-            {/if}
-        {/foreach}
-
-        function updateBankOptions(rootId, bankId) {
+  function updateBankOptions(rootId, bankId) {
             if (rootId) {
                 $('#root-bank').val(rootId);
             }
@@ -90,9 +73,25 @@
         $('#root-bank').change(function () {
             updateBankOptions();
         });
-        $(document).ready(function () {
+
+        $(function () {
+            var messages = [];
+            var bankRootSelect = $('#root-bank');
+            var bankOptions = [];
+            var selectedRootBankId = 0;
+            var selectedBankId = 0;
+            bankRootSelect.attr("disabled", "disabled");
+            {foreach from=$banks item=bank}
+                {if $bank->getParent() eq ''}
+                    bankRootSelect.append('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getName()|escape:'htmlall':'UTF-8'}</option>');
+                    bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'] = [];
+                    bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
+                {else}
+                    bankOptions['{$bank->getParent()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
+                {/if}
+            {/foreach}
             updateBankOptions(selectedRootBankId, selectedBankId);
             bankRootSelect.removeAttr("disabled");
         });
-    })(jQuery);
 </script>
+{/block}

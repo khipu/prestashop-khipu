@@ -15,62 +15,64 @@
 *  International Registered Trademark & Property of PrestaShop SA
 *}
 
-<img src="{$img_header|escape:'htmlall':'UTF-8'}"/>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"/>
 
-<h2>{l s='Transferencia bancaria usando khipu' mod='khipupayment'}</h2>
 
-<fieldset>
-    <legend><img src="../img/admin/warning.gif"/>{l s='Information' mod='khipupayment'}</legend>
-    <div class="margin-form">Module version: {$version|escape:'htmlall':'UTF-8'}</div>
-    <div class="margin-form">API version: {$api_version|escape:'htmlall':'UTF-8'}</div>
-    <label>{l s='Thank you page, error page' mod='khipupayment'}</label>
-
-    <div class="margin-form"><input type="text" size="233" name="url"
-                                    value="{$khipu_notify_url|escape:'htmlall':'UTF-8'}" readonly/></div>
-    <label>{l s='Postback URL' mod='khipupayment'}</label>
-
-    <div class="margin-form"><input type="text" size="233" name="url"
-                                    value="{$khipu_postback_url|escape:'htmlall':'UTF-8'}" readonly/></div>
-</fieldset>
-
-<form action="{$post_url|escape:'htmlall':'UTF-8'}" method="post" style="clear: both; margin-top: 10px;">
-    <fieldset>
-        <legend><img src="../img/admin/contact.gif"/>{l s='Settings' mod='khipupayment'}</legend>
-        {if isset($errors.merchantERR)}
-            <div class="error">
-                <p>{$errors.merchantERR|escape:'htmlall':'UTF-8'}</p>
-            </div>
-        {/if}
-        <label for="merchantID">{l s='ID Cobrador' mod='khipupayment'}</label>
-
-        <div class="margin-form"><input type="text" size="33" id="merchantID" name="merchantID"
-                                        value="{$data_merchantid|escape:'htmlall':'UTF-8'}"/></div>
-        <label for="secretCode">{l s='Llave secreta' mod='khipupayment'}</label>
-
-        <div class="margin-form"><input type="text" size="33" name="secretCode"
-                                        id="secretCode" value="{$data_secretcode|escape:'htmlall':'UTF-8'}"/></div>
-
-        <label for="secretCode">{l s='Tipos de pago habilitados' mod='khipupayment'}</label>
-
-        <div class="margin-form">
-	    {if $paymentMethodAvailable["simpleTransfer"]}
-		<input type="checkbox" name="simpleTransfer" {if $data_simpleTransfer}checked{/if} value="1"> Transferencia simplificada (con
-                    terminal de pagos khipu)<br>
-	    {/if}
-	    {if $paymentMethodAvailable["regularTransfer"]}
-		<input type="checkbox" name="regularTransfer" {if $data_regularTransfer}checked{/if} value="1"> Transferencia normal<br>
-	    {/if}
-	    {if $paymentMethodAvailable["payme"]}
-		<input type="checkbox" name="payme" {if $data_payme}checked{/if} value="1"> Pago con Tarjeta bancaria<br>
-	    {/if}
+<div class="container">
+    <div class="row">
+    <img src="{$img_header|escape:'htmlall':'UTF-8'}"/>
+    
+    <h2>{l s='Transferencia bancaria usando khipu' mod='khipupayment'}</h2>
+    </div>
+    
+    <div class="panel panel-info">
+        <div class="panel-heading" style="margin: -20px -20px 0px -20px;">
+           <i class="fa fa-info-circle"></i> Información del Módulo
         </div>
-
-        <label for="merchantID">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
-
-        <div class="margin-form"><input type="number" size="33" id="hoursTimeout" name="hoursTimeout"
-                                        value="{$data_hoursTimeout|escape:'htmlall':'UTF-8'}"/></div>
-
-        <center><input type="submit" name="khipu_updateSettings" value="{l s='Save Settings' mod='khipupayment'}"
-                       class="button" style="cursor: pointer; display:"/></center>
-    </fieldset>
-</form>
+        <div class="panel-body">
+            <div class="row">
+                <label class="col-3 col-form-label"><strong>Module version</strong>: {$version|escape:'htmlall':'UTF-8'}</label>
+            </div>
+            <div class="row">
+                <label class="col-3 col-form-label"><strong>API version</strong>: {$api_version|escape:'htmlall':'UTF-8'}</label>
+            </div>
+        </div>
+    </div>
+    <div class="panel panel-info ">
+        <div class="panel-heading" style="margin: -20px -20px 0px -20px;">
+            <i class="fa fa-cogs fa-2x" aria-hidden="true"> </i> {l s='Configuración Básica' mod='khipupayment'}
+        </div>
+        <div class="panel-body">
+            <form action="{$post_url|escape:'htmlall':'UTF-8'}" method="post" class="form-horizontal">
+                    <fieldset class="form-group">
+                    <input type="hidden" id="notify_url" name="notify_url" value="{$khipu_notify_url|escape:'htmlall':'UTF-8'}" />
+                    <input type="hidden" id="postback_url" name="postback_url" value="{$khipu_postback_url|escape:'htmlall':'UTF-8'}" />
+                    <div class="form-group row">
+                        <label for="merchantID" class="col-sm-3 col-form-label">{l s='ID Cobrador' mod='khipupayment'}</label>
+                        <div class="col-sm-9">
+                            <input type="text" id="merchantID" class="form-control" name="merchantID" value="{$data_merchantid|escape:'htmlall':'UTF-8'}"/>
+                        </div>
+                    </div>
+                    
+            
+                     <div class="form-group row">
+                        <label for="secretCode" class="col-sm-3 col-form-label">{l s='Llave secreta' mod='khipupayment'}</label>
+                        <div class="col-sm-9">
+                            <input type="text" name="secretCode"  class="form-control" id="secretCode" value="{$data_secretcode|escape:'htmlall':'UTF-8'}"/>
+                        </div>
+                    </div>
+            
+                    
+                    <div class="form-group row">
+                        <label for="hoursTimeout" class="col-sm-3 col-form-label">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
+                        <div class="col-sm-9">
+                            <input type="number" id="hoursTimeout" class="form-control" name="hoursTimeout" value="{$data_hoursTimeout|escape:'htmlall':'UTF-8'}"/>
+                        </div> 
+                    </div>
+            
+                    <input type="submit" name="khipu_updateSettings" class="btn btn-primary" value="{l s='Guardar' mod='khipupayment'}" />
+                </fieldset>
+            </form>
+        </div>
+    </div>
+</div>
