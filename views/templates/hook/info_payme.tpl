@@ -24,5 +24,5 @@
 *}
 
 <div class="alert">
-    <p></p>
+    <p>khipu te permite pagar con cualquier tarjeta de crédito o débito emitida por bancos bolivianos.</p>
 </div>

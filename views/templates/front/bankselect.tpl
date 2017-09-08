@@ -48,33 +48,8 @@
         </div>
     </div>
 </form>
-<script>
-  function updateBankOptions(rootId, bankId) {
-            if (rootId) {
-                $('#root-bank').val(rootId);
-            }
-
-            var idx = $('#root-bank :selected').val();
-            $('#bank-id').empty();
-            var options = bankOptions[idx];
-            for (var i = 0; i < options.length; i++) {
-                $('#bank-id').append(options[i]);
-            }
-            if (options.length > 1) {
-                $('#bank-id').show();
-            } else {
-                $('#bank-id').hide();
-            }
-            if (bankId) {
-                $('#bank-id').val(bankId);
-            }
-            $('#bank-id').change();
-        }
-        $('#root-bank').change(function () {
-            updateBankOptions();
-        });
-
-        $(function () {
+    <script>
+        (function ($) {
             var messages = [];
             var bankRootSelect = $('#root-bank');
             var bankOptions = [];
@@ -82,16 +57,41 @@
             var selectedBankId = 0;
             bankRootSelect.attr("disabled", "disabled");
             {foreach from=$banks item=bank}
-                {if $bank->getParent() eq ''}
-                    bankRootSelect.append('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getName()|escape:'htmlall':'UTF-8'}</option>');
-                    bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'] = [];
-                    bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
-                {else}
-                    bankOptions['{$bank->getParent()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
-                {/if}
+            {if $bank->getParent() eq ''}
+            bankRootSelect.append('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getName()|escape:'htmlall':'UTF-8'}</option>');
+            bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'] = [];
+            bankOptions['{$bank->getBankId()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
+            {else}
+            bankOptions['{$bank->getParent()|escape:'htmlall':'UTF-8'}'].push('<option value="{$bank->getBankId()|escape:'htmlall':'UTF-8'}">{$bank->getType()|escape:'htmlall':'UTF-8'}</option>');
+            {/if}
             {/foreach}
-            updateBankOptions(selectedRootBankId, selectedBankId);
-            bankRootSelect.removeAttr("disabled");
-        });
-</script>
+            function updateBankOptions(rootId, bankId) {
+                if (rootId) {
+                    $('#root-bank').val(rootId);
+                }
+                var idx = $('#root-bank :selected').val();
+                $('#bank-id').empty();
+                var options = bankOptions[idx];
+                for (var i = 0; i < options.length; i++) {
+                    $('#bank-id').append(options[i]);
+                }
+                if (options.length > 1) {
+                    $('#bank-id').show();
+                } else {
+                    $('#bank-id').hide();
+                }
+                if (bankId) {
+                    $('#bank-id').val(bankId);
+                }
+                $('#bank-id').change();
+            }
+            $('#root-bank').change(function () {
+                updateBankOptions();
+            });
+            $(document).ready(function () {
+                updateBankOptions(selectedRootBankId, selectedBankId);
+                bankRootSelect.removeAttr("disabled");
+            });
+        })(jQuery);
+    </script>
 {/block}

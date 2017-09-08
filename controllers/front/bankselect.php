@@ -18,20 +18,15 @@
 class KhipuPaymentBankselectModuleFrontController extends ModuleFrontController
 {
 
-    public function __construct()
-    {
-        parent::__construct();
-        $this->display_column_left = false;
-    }
 
-    public function initContent()
+    public function postProcess()
     {
-        parent::initContent();
 
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', KhipuPayment::PLUGIN_VERSION);
+        $khipu_payment = new KhipuPayment();
+        $configuration->setPlatform('prestashop-khipu', $khipu_payment->version);
 
 
         $client = new Khipu\ApiClient($configuration);
@@ -46,7 +41,7 @@ class KhipuPaymentBankselectModuleFrontController extends ModuleFrontController
                     'error' => $exception->getResponseObject()
                 )
             );
-            $this->setTemplate('khipu_error.tpl');
+            $this->setTemplate('module:khipupayment/views/templates/front/khipu_error.tpl');
             return;
         }
 

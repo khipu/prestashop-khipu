@@ -20,21 +20,23 @@
 
 <div class="container">
     <div class="row">
-    <img src="{$img_header|escape:'htmlall':'UTF-8'}"/>
-    
-    <h2>{l s='Transferencia bancaria usando khipu' mod='khipupayment'}</h2>
+        <img src="{$img_header|escape:'htmlall':'UTF-8'}"/>
+
+        <h2>{l s='Transferencia bancaria usando khipu' mod='khipupayment'}</h2>
     </div>
-    
+
     <div class="panel panel-info">
         <div class="panel-heading" style="margin: -20px -20px 0px -20px;">
-           <i class="fa fa-info-circle"></i> Información del Módulo
+            <i class="fa fa-info-circle"></i> Información del Módulo
         </div>
         <div class="panel-body">
             <div class="row">
-                <label class="col-3 col-form-label"><strong>Module version</strong>: {$version|escape:'htmlall':'UTF-8'}</label>
+                <label class="col-3 col-form-label"><strong>Module version</strong>: {$version|escape:'htmlall':'UTF-8'}
+                </label>
             </div>
             <div class="row">
-                <label class="col-3 col-form-label"><strong>API version</strong>: {$api_version|escape:'htmlall':'UTF-8'}</label>
+                <label class="col-3 col-form-label"><strong>API
+                        version</strong>: {$api_version|escape:'htmlall':'UTF-8'}</label>
             </div>
         </div>
     </div>
@@ -44,33 +46,43 @@
         </div>
         <div class="panel-body">
             <form action="{$post_url|escape:'htmlall':'UTF-8'}" method="post" class="form-horizontal">
-                    <fieldset class="form-group">
-                    <input type="hidden" id="notify_url" name="notify_url" value="{$khipu_notify_url|escape:'htmlall':'UTF-8'}" />
-                    <input type="hidden" id="postback_url" name="postback_url" value="{$khipu_postback_url|escape:'htmlall':'UTF-8'}" />
+                <fieldset class="form-group">
+                    <input type="hidden" id="notify_url" name="notify_url"
+                           value="{$khipu_notify_url|escape:'htmlall':'UTF-8'}"/>
+                    <input type="hidden" id="postback_url" name="postback_url"
+                           value="{$khipu_postback_url|escape:'htmlall':'UTF-8'}"/>
                     <div class="form-group row">
-                        <label for="merchantID" class="col-sm-3 col-form-label">{l s='ID Cobrador' mod='khipupayment'}</label>
+                        <label for="merchantID"
+                               class="col-sm-3 col-form-label">{l s='ID Cobrador' mod='khipupayment'}</label>
                         <div class="col-sm-9">
-                            <input type="text" id="merchantID" class="form-control" name="merchantID" value="{$data_merchantid|escape:'htmlall':'UTF-8'}"/>
+                            <input type="text" id="merchantID" class="form-control" name="merchantID"
+                                   value="{$data_merchantid|escape:'htmlall':'UTF-8'}"/>
                         </div>
                     </div>
-                    
-            
-                     <div class="form-group row">
-                        <label for="secretCode" class="col-sm-3 col-form-label">{l s='Llave secreta' mod='khipupayment'}</label>
+
+
+                    <div class="form-group row">
+                        <label for="secretCode"
+                               class="col-sm-3 col-form-label">{l s='Llave secreta' mod='khipupayment'}</label>
                         <div class="col-sm-9">
-                            <input type="text" name="secretCode"  class="form-control" id="secretCode" value="{$data_secretcode|escape:'htmlall':'UTF-8'}"/>
+                            <input type="text" name="secretCode" class="form-control" id="secretCode"
+                                   value="{$data_secretcode|escape:'htmlall':'UTF-8'}"/>
                         </div>
                     </div>
-            
-                    
+
+
                     <div class="form-group row">
-                        <label for="hoursTimeout" class="col-sm-3 col-form-label">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
+                        <label for="hoursTimeout"
+                               class="col-sm-3 col-form-label">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
                         <div class="col-sm-9">
-                            <input type="number" id="hoursTimeout" class="form-control" name="hoursTimeout" value="{$data_hoursTimeout|escape:'htmlall':'UTF-8'}"/>
-                        </div> 
+                            <input type="number" id="hoursTimeout" class="form-control" name="hoursTimeout"
+                                   value="{$data_hoursTimeout|escape:'htmlall':'UTF-8'}"/>
+                        </div>
                     </div>
-            
-                    <input type="submit" name="khipu_updateSettings" class="btn btn-primary" value="{l s='Guardar' mod='khipupayment'}" />
+
+
+                    <input type="submit" name="khipu_updateSettings" class="btn btn-primary"
+                           value="{l s='Guardar' mod='khipupayment'}"/>
                 </fieldset>
             </form>
         </div>

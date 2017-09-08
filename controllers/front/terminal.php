@@ -17,37 +17,27 @@
 
 class KhipuPaymentTerminalModuleFrontController extends ModuleFrontController
 {
+
     public function postProcess()
     {
-
-        $configuration = new Khipu\Configuration();
-        $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
-        $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', KhipuPayment::version);
-        $client = new Khipu\ApiClient($configuration);
-        $banks = new Khipu\Client\BanksApi($client);
-
-
-        try {
-            $banksResponse = $banks->banksGet();
-        } catch (Khipu\ApiException $exception) {
-            $this->context->smarty->assign(
-                array(
-                    'error' => $exception->getResponseObject()
-                )
-            );
-            $this->setTemplate('module:khipupayment/views/templates/front/khipu_error.tpl');
-            return;
-        }
-
         $this->context->smarty->assign(
             array(
-                'action' => Context::getContext()->link->getModuleLink('khipupayment', 'payment'),
-                'request' => $_REQUEST,
-                'banks' => $banksResponse->getBanks()
+                'data' => array(
+                    'id' => Tools::getValue('payment_id'),
+                    'url' => Tools::getValue('url'),
+                    'ready-for-terminal' => 'true'
+                )
             )
         );
 
-        $this->setTemplate('module:khipupayment/views/templates/front/selectBank.tpl');
+        $this->setTemplate('module:khipupayment/views/templates/front/terminal.tpl');
+    }
+
+
+    public function setMedia()
+    {
+        parent::setMedia();
+        $this->registerJavascript('module-khipupayment-khipulib', 'https://storage.googleapis.com/installer/khipu.js', ['server' => 'remote', 'position' => 'bottom', 'priority' => 20]);
+
     }
 }

@@ -18,7 +18,7 @@
 class KhipuPostback
 {
 
-    const PLUGIN_VERSION = '2.7.0';
+    const PLUGIN_VERSION = '3.0.0';
 
     public function init()
     {
@@ -54,9 +54,17 @@ class KhipuPostback
 
         $cart = Cart::getCartByOrderId($order->id);
 
-        $currency = Currency::getCurrency($cart->id_currency);
+        //$currency = Currency::getCurrency($cart->id_currency);
+        $currency = Currency::getCurrencyInstance($cart->id_currency);
 
-        $precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
+        $precision = 0;
+        if($currency->iso_code =='CLP'){
+            $precision = 0;
+        } else if ($currency->iso_code == 'BOB'){
+            $precision = 2;
+        }
+
+        //$precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
 
         if (Configuration::get('KHIPU_MERCHANTID') == $paymentResponse->getReceiverId()
             && $paymentResponse->getStatus() == 'done'
