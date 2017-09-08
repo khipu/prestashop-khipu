@@ -46,7 +46,7 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', KhipuPayment::PLUGIN_VERSION);
+        $configuration->setPlatform('prestashop-khipu', $khipu_payment->version);
 
 
         $client = new Khipu\ApiClient($configuration);
@@ -57,9 +57,11 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
             true
         );
 
-        $currency = Currency::getCurrency($cart->id_currency);
+        $currency = Currency::getCurrencyInstance($cart->id_currency);
 
-        $precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
+        $precision = 0; //CLP $currency->decimals * _PS_PRICE_COMPUTE_PRECISION_;
+
+        //die("precision ". $precision);
 
         $interval = new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H');
         $timeout = new DateTime('now');
@@ -67,7 +69,7 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
 
         try {
             $createPaymentResponse = $payments->paymentsPost(Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
-                , $currency['iso_code']
+                , $currency->iso_code
                 , Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), $precision)
                 , $cart->id
                 , null
@@ -95,7 +97,7 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
                                             'error' => $exception->getResponseObject()
                                         )
                                     );
-            $this->setTemplate('khipu_error.tpl');
+            $this->setTemplate('module:khipupayment/views/templates/front/khipu_error.tpl');
             return;
         }
 

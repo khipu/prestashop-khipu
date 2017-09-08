@@ -16,8 +16,7 @@
 *}
 
 {assign var='current_step' value='payment'}
-{include file="$tpl_dir./order-steps.tpl"}
-{include file="$tpl_dir./errors.tpl"}
+
 
 <h2>{l s='Error de conexión con khipu' mod='khipupayment'}</h2>
 

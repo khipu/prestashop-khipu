@@ -14,13 +14,12 @@
 *  @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
 *  International Registered Trademark & Property of PrestaShop SA
 *}
-
+{extends "$layout"}
+{block name="content"}
 {capture name=path}{l s='Seleccione el banco' mod='khipupayment'}{/capture}
 <h2>{l s='Resumen del pedido' mod='khipupayment'}</h2>
 
 {assign var='current_step' value='payment'}
-{include file="$tpl_dir./order-steps.tpl"}
-{include file="$tpl_dir./errors.tpl"}
 
 <div id="wait-msg" class="alert alert-info">
     Estamos iniciando la aplicación khipu, por favor espera unos segundos.<br>
@@ -31,13 +30,14 @@
 <script>
     function openKhipu() {ldelim}
         KhipuLib.onLoad({ldelim}
-                    data:{ldelim}
-                    {foreach from=$data item=value key=key}
-                        "{$key|escape:'htmlall':'UTF-8'}": "{$value|escape:'htmlall':'UTF-8'}",
-                    {/foreach}
-                        {rdelim}
-                    {rdelim}
+            data:{ldelim}
+                {foreach from=$data item=value key=key}
+                "{$key|escape:'htmlall':'UTF-8'}": "{$value|escape:'htmlall':'UTF-8'}",
+                {/foreach}
+                {rdelim}
+            {rdelim}
         );
         {rdelim}
     window.onload = openKhipu;
 </script>
+{/block}

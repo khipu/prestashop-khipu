@@ -15,79 +15,71 @@
  * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
+use PrestaShop\PrestaShop\Core\Payment\PaymentOption;
+
+require __DIR__ . '/vendor/autoload.php';
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 class KhipuPayment extends PaymentModule
 {
-    
-    const PLUGIN_VERSION = '2.6.0';
-
-    protected $errors = array();
+    public $details;
+    public $owner;
+    public $address;
+    public $extra_mail_vars;
+    protected $_html = '';
+    protected $_postErrors = array();
 
     public function __construct()
     {
-        require __DIR__ . '/vendor/autoload.php';
-
         $this->name = 'khipupayment';
-        $this->module_key = '44ce18c9f730a38ff054c6a2a535c296';
+        $this->tab = 'payments_gateways';
+        $this->version = '3.0.0';
+        $this->apiVersion = '2.0';
+        $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
+        $this->author = 'Khipu SpA';
+        $this->controllers = array('validate');
+        $this->is_eu_compatible = 1;
 
-        // Calling the parent's constructor. This must be done before any use of the $this->l() method,
-        // and after the creation of $this->name.
+        $this->currencies = true;
+        $this->currencies_mode = 'checkbox';
+
+        $this->bootstrap = true;
         parent::__construct();
 
-        $this->displayName = $this->l('khipu');
-        $this->description = $this->l('Recibe pagos con khipu');
+        $this->displayName = $this->l('Khipu');
+        $this->description = $this->l('Paga usando Khipu');
 
-        $this->author = 'khipu';
-        $this->version = KhipuPayment::PLUGIN_VERSION;
-        $this->tab = 'payments_gateways';
-
-        // Module settings
-        $this->setModuleSettings();
-
-        // Check module requirements
-        $this->checkModuleRequirements();
-    }
-
-    private function setModuleSettings()
-    {
+        if (!count(Currency::checkPaymentCurrencies($this->id))) {
+            $this->warning = $this->l('No currency has been set for this module.');
+        }
         $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
         $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
         $this->simpleTransfer = Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED');
         $this->regularTransfer = Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED');
         $this->payme = Configuration::get('KHIPU_PAYME_ENABLED');
+        $this->notify_url = Configuration::get('KHIPU_NOTIFY_URL');
+        $this->postback_url = Configuration::get('KHIPU_POSTBACK_URL');
 
         $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get(
             'KHIPU_HOURS_TIMEOUT'
-        ) : 3);
+        ) : 6);
     }
 
-    private function checkModuleRequirements()
-    {
-        if (!Configuration::get('KHIPU_HOURS_TIMEOUT')) {
-            Configuration::updateValue('KHIPU_HOURS_TIMEOUT', 6);
-        }
-        $this->errors = array();
-    }
 
     public function install()
     {
-        if (!parent::install()
-            or !$this->registerHook('payment')
-            or !$this->registerHook('paymentReturn')
-            or !$this->registerHook('displayHeader')
-            or !$this->registerHook('displayBackOfficeHeader')
-        ) {
-            return false;
+
+        if (parent::install() && $this->registerHook('paymentOptions') && $this->registerHook('paymentReturn')) {
+            $this->addOrderStates();
+            return true;
         }
-
-        $this->addOrderStates();
-
-        return true;
     }
 
     private function addOrderStates()
     {
         if (!(Configuration::get('PS_OS_KHIPU_OPEN') > 0)) {
-            // Open
             $OrderState = new OrderState(null, Configuration::get('PS_LANG_DEFAULT'));
             $OrderState->name = "Esperando pago khipu";
             $OrderState->invoice = false;
@@ -117,159 +109,133 @@ class KhipuPayment extends PaymentModule
 
     public function uninstall()
     {
-        if (!parent::uninstall()) {
-            return false;
-        }
+        return
+            parent::uninstall()
+            && Configuration::deleteByName('KHIPU_MERCHANTID')
+            && Configuration::deleteByName('KHIPU_SECRETCODE')
+            && Configuration::deleteByName('KHIPU_SIMPLE_TRANSFER_ENABLED')
+            && Configuration::deleteByName('KHIPU_REGULAR_TRANSFER_ENABLED')
+            && Configuration::deleteByName('KHIPU_PAYME_ENABLED')
+            && Configuration::deleteByName('KHIPU_NOTIFY_URL')
+            && Configuration::deleteByName('KHIPU_POSTBACK_URL')
+            && $this->unregisterHook('paymentOptions')
+            && $this->unregisterHook('paymentReturn');
 
-        // Drop the paymentmethod table
-        Db::getInstance()->execute("DROP TABLE if exists {$this->dbPmInfo}");
-
-        // Drop the paymentmethod raw data table
-        Db::getInstance()->execute("DROP TABLE if exists {$this->dbRawData}");
-
-        return true;
     }
 
-    public function hookDisplayBackOfficeHeader($params)
-    {
-        $this->checkExpireOrders();
-    }
-
-    public function checkExpireOrders()
-    {
-        if (!Configuration::get('KHIPU_LAST_ORDER_EXPIRE_RUN')) {
-            Configuration::updateValue('KHIPU_LAST_orDER_EXPIRE_RUN', 1);
-        }
-
-        if ((time() - Configuration::get('KHIPU_LAST_ORDER_EXPIRE_RUN')) > 10 * 60) {
-            Configuration::updateValue('KHIPU_LAST_ORDER_EXPIRE_RUN', time());
-            $orders = $this->getOrderIdsByStatus((int)Configuration::get('PS_OS_KHIPU_OPEN'));
-            foreach ($orders as $order_id) {
-                $order = new Order($order_id);
-                if ((time() - strtotime($order->date_upd)) > ((int)Configuration::get('KHIPU_HOURS_TIMEOUT')) * 60 * 60
-                ) {
-                    foreach (Order::getByReference($order->reference) as $referencedOrder) {
-                        $referencedOrder->setCurrentState((int)Configuration::get('PS_OS_CANCELED'));
-                    }
-                }
-            }
-            $orders = $this->getOrderIdsByStatus((int)Configuration::get('PS_OS_CANCELED'));
-            error_log(print_r($orders, TRUE));
-        }
-    }
-    public function getOrderIdsByStatus($id_order_state)
-    {
-        $sql = 'SELECT id_order
-                                FROM '._DB_PREFIX_.'orders o
-                                WHERE o.`current_state` = '.(int)$id_order_state.'
-                                '.Shop::addSqlRestriction(false, 'o').'
-                                ORDER BY invoice_date ASC';
-        $result = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS($sql);
-
-        $orders = array();
-        foreach ($result as $order) {
-            $orders[] = (int)$order['id_order'];
-        }
-        return $orders;
-    }
-
-    public function hookDisplayHeader($params)
-    {
-        $this->checkExpireOrders();
-    }
-
-    public function hookPaymentReturn($params)
+    public function hookPaymentOptions($params)
     {
         if (!$this->active) {
             return;
         }
-        $this->context->smarty->assign(
-            array(
-                'status' => Tools::getValue('status', 'OPEN')
-            )
-        );
-        return $this->display(__FILE__, 'confirmation.tpl');
-    }
+        $payment_options = array();
+        switch ($this->context->currency->iso_code) {
+            case "CLP":
+                $payment_options = [
+                    $this->getKhipuTerminalPayment(),
+                    $this->getKhipuNormalTransferPayment()
+                ];
+                break;
 
-    public function hookPayment($params)
-    {
-        if (!$this->active) {
-            return;
+            case "BOB":
+                $payment_options = [
+                    $this->getKhipuPayMe()
+                ];
+                break;
+
         }
-
-        // Get active Shop ID for multistore shops
-        //$activeShopID = (int)Context::getContext()->shop->id;
-
-        $this->context->smarty->assign(
-            array(
-                'logo' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
-                'simpleTransfer' => Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED'),
-                'regularTransfer' => Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED'),
-                'payme' => Configuration::get('KHIPU_PAYME_ENABLED'),
-                'merchantID'  => Configuration::get('KHIPU_MERCHANTID')
-            )
-        );
-
-        return $this->display(__FILE__, 'views/templates/hook/payment.tpl');
+        return $payment_options;
     }
+
+
+    public function getKhipuTerminalPayment()
+    {
+        $terminal = new PaymentOption();
+        $terminal->setCallToActionText($this->l('Paga usando Khipu'))
+            ->setAction($this->context->link->getModuleLink($this->name, 'bankselect', array(), true))
+            ->setAdditionalInformation(
+                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_terminal.tpl')
+            )
+            ->setLogo('https://bi.khipu.com/150x50/capsule/khipu/transparent/' . $this->merchantID);
+
+        return $terminal;
+    }
+
+    public function getKhipuNormalTransferPayment()
+    {
+        $normalTransfer = new PaymentOption();
+        $normalTransfer->setCallToActionText($this->l('Transferencia Normal'))
+            ->setAction($this->context->link->getModuleLink($this->name, 'manual', array(), true))
+            ->setAdditionalInformation(
+                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_normal.tpl')
+            )
+            ->setLogo('https://bi.khipu.com/150x50/capsule/transfer/transparent/' . $this->merchantID);
+
+        return $normalTransfer;
+    }
+
+
+    public function getKhipuPayMe()
+    {
+        $payme = new PaymentOption();
+        $payme->setCallToActionText($this->l('Paga mediante PayMe'))
+            ->setAction($this->context->link->getModuleLink($this->name, 'payme', array(), true))
+            ->setAdditionalInformation(
+                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_payme.tpl')
+            )
+            ->setLogo('https://bi.khipu.com/150x50/capsule/payme/transparent/' . $this->merchantID);
+
+        return $payme;
+    }
+
 
     public function getContent()
     {
-        // Get active Shop ID for multistore shops
-        //$activeShopID = (int)Context::getContext()->shop->id;
 
         if (Tools::getIsset('khipu_updateSettings')) {
             Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
-	    Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
-
-
+            Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
             Configuration::updateValue('KHIPU_SIMPLE_TRANSFER_ENABLED', Tools::getValue('simpleTransfer'));
             Configuration::updateValue('KHIPU_REGULAR_TRANSFER_ENABLED', Tools::getValue('regularTransfer'));
             Configuration::updateValue('KHIPU_PAYME_ENABLED', Tools::getValue('payme'));
+            Configuration::updateValue('KHIPU_NOTIFY_URL', Tools::getValue('notify_url'));
+            Configuration::updateValue('KHIPU_POSTBACK_URL', Tools::getValue('postback_url'));
 
             if ((int)Tools::getValue('hoursTimeout') > 0) {
                 Configuration::updateValue('KHIPU_HOURS_TIMEOUT', (int)Tools::getValue('hoursTimeout'));
             }
 
-            $this->setModuleSettings();
-	    $this->checkModuleRequirements();
-	}
 
-	$paymentMethodAvailable['simpleTransfer'] = false;
-	$paymentMethodAvailable['regularTransfer'] = false;
-	$paymentMethodAvailable['payme'] = false;
+            $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
+            $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
+            $this->simpleTransfer = Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED');
+            $this->regularTransfer = Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED');
+            $this->payme = Configuration::get('KHIPU_PAYME_ENABLED');
+            $this->notify_url = Configuration::get('KHIPU_NOTIFY_URL');
+            $this->postback_url = Configuration::get('KHIPU_POSTBACK_URL');
 
-	if($this->context->currency->iso_code == 'CLP'){
-		$paymentMethodAvailable['simpleTransfer'] = true;
-		$paymentMethodAvailable['regularTransfer'] = true;
-	}
-
-	if($this->context->currency->iso_code == 'BOB'){
-		$paymentMethodAvailable['payme'] = true;
-	}
+            $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get(
+                'KHIPU_HOURS_TIMEOUT'
+            ) : 6);
+        }
 
 
         $shopDomainSsl = Tools::getShopDomainSsl(true, true);
-        $this->context->smarty->assign(
-	array(
-		'paymentMethodAvailable' => $paymentMethodAvailable,
-                'errors' => $this->errors,
-                'post_url' => $_SERVER['REQUEST_URI'],
-                'data_merchantid' => $this->merchantID,
-		'data_secretcode' => $this->secretCode,
-		'data_simpleTransfer' => $this->simpleTransfer,
-		'data_regularTransfer' => $this->regularTransfer,
-		'data_payme' => $this->payme,
-                'data_hoursTimeout' => $this->hoursTimeout,
-                'version' => $this->version,
-                'api_version' => '2.0',
-                'img_header' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
-                'khipu_notify_url' => $shopDomainSsl . __PS_BASE_URI__
-                    . "index.php?fc=module&module={$this->name}&controller=validate",
-                'khipu_postback_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/validate.php"
-            )
+        $params = array(
+            'post_url' => $_SERVER['REQUEST_URI'],
+            'data_merchantid' => $this->merchantID,
+            'data_secretcode' => $this->secretCode,
+            'data_hoursTimeout' => $this->hoursTimeout,
+            'version' => $this->version,
+            'api_version' => $this->apiVersion,
+            'img_header' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
+            'khipu_notify_url' => $shopDomainSsl . __PS_BASE_URI__ . "index.php?fc=module&module={$this->name}&controller=validate",
+            'khipu_postback_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/validate.php"
         );
+
+        $this->context->smarty->assign($params);
 
         return $this->display($this->name, 'views/templates/admin/config.tpl');
     }
+
 }

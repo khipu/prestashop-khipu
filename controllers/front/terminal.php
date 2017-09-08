@@ -18,15 +18,8 @@
 class KhipuPaymentTerminalModuleFrontController extends ModuleFrontController
 {
 
-    public function __construct()
+    public function postProcess()
     {
-        parent::__construct();
-        $this->display_column_left = false;
-    }
-
-    public function initContent()
-    {
-        parent::initContent();
         $this->context->smarty->assign(
             array(
                 'data' => array(
@@ -37,8 +30,14 @@ class KhipuPaymentTerminalModuleFrontController extends ModuleFrontController
             )
         );
 
-        $this->addJquery();
-        $this->addJS('https://storage.googleapis.com/installer/khipu.js');
-        $this->setTemplate('terminal.tpl');
+        $this->setTemplate('module:khipupayment/views/templates/front/terminal.tpl');
+    }
+
+
+    public function setMedia()
+    {
+        parent::setMedia();
+        $this->registerJavascript('module-khipupayment-khipulib', 'https://storage.googleapis.com/installer/khipu.js', ['server' => 'remote', 'position' => 'bottom', 'priority' => 20]);
+
     }
 }
