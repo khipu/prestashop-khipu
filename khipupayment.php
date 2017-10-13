@@ -18,7 +18,7 @@
 class KhipuPayment extends PaymentModule
 {
     
-    const PLUGIN_VERSION = '2.6.0';
+    const PLUGIN_VERSION = '2.6.1';
 
     protected $errors = array();
 
@@ -101,7 +101,7 @@ class KhipuPayment extends PaymentModule
             $OrderState->shipped = false;
             $OrderState->paid = false;
             $OrderState->deleted = false;
-            $OrderState->template = "order_changed";
+           // $OrderState->template = "order_changed";
             $OrderState->add();
 
             Configuration::updateValue("PS_OS_KHIPU_OPEN", $OrderState->id);
