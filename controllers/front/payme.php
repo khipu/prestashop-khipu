@@ -65,30 +65,29 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
         $timeout = new DateTime('now');
         $timeout->add($interval);
 
+        $opts = array(
+            'transaction_id' => $cart->id
+        ,
+            'return_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
+                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=ok&cartId=" . $cart->id
+        ,
+            'cancel_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
+                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=cancel&cartId=" . $cart->id
+        ,
+            'notify_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php"
+        ,
+            'notify_api_version' => '1.3'
+        ,
+            'payer_email' => $customer->email
+        ,
+            'expires_date' => $timeout
+        );
+
         try {
             $createPaymentResponse = $payments->paymentsPost(Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
                 , $currency->iso_code
                 , Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), $precision)
-                , $cart->id
-                , null
-                , null
-                , null
-                , Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
-                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=ok&cartId=" . $cart->id
-                , Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
-                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=cancel&cartId="
-                . $cart->id
-                , null
-                , $shopDomainSsl . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php"
-                , '1.3'
-                , $timeout
-                , null
-                , null
-                , $customer->email
-                , null
-                , null
-                , null
-                , null);
+                , $opts);
         } catch (\Khipu\ApiException $exception) {
             $this->context->smarty->assign(
                                     array(
