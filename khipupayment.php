@@ -35,7 +35,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '3.0.2';
+        $this->version = '3.0.3';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
@@ -131,10 +131,17 @@ class KhipuPayment extends PaymentModule
         $payment_options = array();
         switch ($this->context->currency->iso_code) {
             case "CLP":
-                $payment_options = [
-                    $this->getKhipuTerminalPayment(),
-                    $this->getKhipuNormalTransferPayment()
-                ];
+                $payment_options = [];
+                if(Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED')){
+                    $payment_options[] = $this->getKhipuTerminalPayment();
+                }
+                if(Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED')) {
+                    $payment_options[] = $this->getKhipuNormalTransferPayment();
+                }
+                if(!Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED') && !Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED')){
+                    $payment_options[] = $this->getKhipuTerminalPayment();
+                    $payment_options[] = $this->getKhipuNormalTransferPayment();
+                }
                 break;
 
             case "BOB":
@@ -226,6 +233,9 @@ class KhipuPayment extends PaymentModule
             'data_merchantid' => $this->merchantID,
             'data_secretcode' => $this->secretCode,
             'data_hoursTimeout' => $this->hoursTimeout,
+            'data_simpleTransfer' => $this->simpleTransfer,
+            'data_regularTransfer' => $this->regularTransfer,
+            'data_payme' => $this->payme,
             'version' => $this->version,
             'api_version' => $this->apiVersion,
             'img_header' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
