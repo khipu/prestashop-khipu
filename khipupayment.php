@@ -149,6 +149,11 @@ class KhipuPayment extends PaymentModule
                     $this->getKhipuPayMe()
                 ];
                 break;
+            case "USD":
+                $payment_options = [
+                    $this->getKhipuPayMe()
+                ];
+                break;
 
         }
         return $payment_options;
