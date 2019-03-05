@@ -263,6 +263,7 @@ class KhipuPayment extends PaymentModule
             'data_simpleTransfer' => $this->simpleTransfer,
             'data_regularTransfer' => $this->regularTransfer,
             'data_payme' => $this->payme,
+            'data_webpay' => $this->webpay,
             'version' => $this->version,
             'api_version' => $this->apiVersion,
             'img_header' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/logo.png",
