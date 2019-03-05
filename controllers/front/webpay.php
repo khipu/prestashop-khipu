@@ -15,7 +15,7 @@
  * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
-class KhipuPaymentManualModuleFrontController extends ModuleFrontController
+class KhipuPaymentWebpayModuleFrontController extends ModuleFrontController
 {
 
     public function initContent()
@@ -59,7 +59,7 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
 
         $currency = Currency::getCurrencyInstance($cart->id_currency);
 
-        $precision = 0; //CLP $currency->decimals * _PS_PRICE_COMPUTE_PRECISION_;
+        $precision = 0; //BOB $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_; //LM: CHECK
 
         $interval = new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H');
         $timeout = new DateTime('now');
@@ -87,7 +87,7 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
             $createPaymentResponse = $payments->paymentsPost(Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
                 , $currency->iso_code
                 , Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), $precision)
-                , $cart->id
+//                , $cart->id //LM: CHECK
                 , $opts);
         } catch (\Khipu\ApiException $exception) {
             $this->context->smarty->assign(
@@ -99,6 +99,6 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
             return;
         }
 
-        Tools::redirect($createPaymentResponse->getTransferUrl());
+        Tools::redirect($createPaymentResponse->getWebpayUrl());
     }
 }

@@ -59,6 +59,7 @@ class KhipuPayment extends PaymentModule
         $this->simpleTransfer = Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED');
         $this->regularTransfer = Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED');
         $this->payme = Configuration::get('KHIPU_PAYME_ENABLED');
+        $this->webpay = Configuration::get('KHIPU_WEBPAY_ENABLED');
         $this->notify_url = Configuration::get('KHIPU_NOTIFY_URL');
         $this->postback_url = Configuration::get('KHIPU_POSTBACK_URL');
 
@@ -116,6 +117,7 @@ class KhipuPayment extends PaymentModule
             && Configuration::deleteByName('KHIPU_SIMPLE_TRANSFER_ENABLED')
             && Configuration::deleteByName('KHIPU_REGULAR_TRANSFER_ENABLED')
             && Configuration::deleteByName('KHIPU_PAYME_ENABLED')
+            && Configuration::deleteByName('KHIPU_WEBPAY_ENABLED')
             && Configuration::deleteByName('KHIPU_NOTIFY_URL')
             && Configuration::deleteByName('KHIPU_POSTBACK_URL')
             && $this->unregisterHook('paymentOptions')
@@ -138,9 +140,17 @@ class KhipuPayment extends PaymentModule
                 if(Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED')) {
                     $payment_options[] = $this->getKhipuNormalTransferPayment();
                 }
-                if(!Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED') && !Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED')){
+                if(Configuration::get('KHIPU_WEBPAY_ENABLED')) {
+                    $payment_options[] = $this->getKhipuWebPay();
+                }
+                if(
+                    !Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED') &&
+                    !Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED') &&
+                    !Configuration::get('KHIPU_WEBPAY_ENABLED')
+                ){
                     $payment_options[] = $this->getKhipuTerminalPayment();
                     $payment_options[] = $this->getKhipuNormalTransferPayment();
+                    $payment_options[] = $this->getKhipuWebPay();
                 }
                 break;
 
@@ -158,7 +168,6 @@ class KhipuPayment extends PaymentModule
         }
         return $payment_options;
     }
-
 
     public function getKhipuTerminalPayment()
     {
@@ -186,7 +195,6 @@ class KhipuPayment extends PaymentModule
         return $normalTransfer;
     }
 
-
     public function getKhipuPayMe()
     {
         $payme = new PaymentOption();
@@ -200,6 +208,18 @@ class KhipuPayment extends PaymentModule
         return $payme;
     }
 
+    public function getKhipuWebPay()
+    {
+        $webpay = new PaymentOption();
+        $webpay->setCallToActionText($this->l('Paga mediante WebPay'))
+            ->setAction($this->context->link->getModuleLink($this->name, 'webpay', array(), true))
+            ->setAdditionalInformation(
+                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_webpay.tpl')
+            )
+            ->setLogo('https://bi.khipu.com/150x50/capsule/webpay/transparent/' . $this->merchantID);
+
+        return $webpay;
+    }
 
     public function getContent()
     {
@@ -210,6 +230,7 @@ class KhipuPayment extends PaymentModule
             Configuration::updateValue('KHIPU_SIMPLE_TRANSFER_ENABLED', Tools::getValue('simpleTransfer'));
             Configuration::updateValue('KHIPU_REGULAR_TRANSFER_ENABLED', Tools::getValue('regularTransfer'));
             Configuration::updateValue('KHIPU_PAYME_ENABLED', Tools::getValue('payme'));
+            Configuration::updateValue('KHIPU_WEBPAY_ENABLED', Tools::getValue('webpay'));
             Configuration::updateValue('KHIPU_NOTIFY_URL', Tools::getValue('notify_url'));
             Configuration::updateValue('KHIPU_POSTBACK_URL', Tools::getValue('postback_url'));
 
@@ -223,6 +244,7 @@ class KhipuPayment extends PaymentModule
             $this->simpleTransfer = Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED');
             $this->regularTransfer = Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED');
             $this->payme = Configuration::get('KHIPU_PAYME_ENABLED');
+            $this->webpay = Configuration::get('KHIPU_WEBPAY_ENABLED');
             $this->notify_url = Configuration::get('KHIPU_NOTIFY_URL');
             $this->postback_url = Configuration::get('KHIPU_POSTBACK_URL');
 
