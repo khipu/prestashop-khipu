@@ -84,7 +84,8 @@ class KhipuPaymentWebpayModuleFrontController extends ModuleFrontController
         );
 
         try {
-            $createPaymentResponse = $payments->paymentsPost(Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
+            $createPaymentResponse = $payments->paymentsPost(
+                Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
                 , $currency->iso_code
                 , Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), $precision)
 //                , $cart->id //LM: CHECK
