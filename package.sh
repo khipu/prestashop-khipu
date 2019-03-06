@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 cd ..
-rm -rf prestashop-khipu-release
-mkdir prestashop-khipu-release
+rm -rf prestashop-khipu-release prestashop-khipu/dist
+mkdir prestashop-khipu-release prestashop-khipu/dist
 cp -R prestashop-khipu prestashop-khipu-release
 cd prestashop-khipu-release
 mv prestashop-khipu khipupayment
@@ -15,4 +15,5 @@ rm -rf \
     khipupayment/package.sh \
     khipupayment/composer.phar
 zip -r khipupayment.zip khipupayment
+cp khipupayment.zip ../prestashop-khipu/dist
 cd ../prestashop-khipu
