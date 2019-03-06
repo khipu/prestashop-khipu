@@ -45,3 +45,13 @@
         </a>
     </p>
 {/if}
+{if $webpay}
+    <p class="payment_module">
+        <a href="{$link->getModuleLink('khipupayment', 'webpay')|escape:'htmlall':'UTF-8'}"
+           title="{l s='Paga con cualquier Tarjeta de Crédito o RedCompra.' mod='khipupayment'}">
+            <img src="//bi.khipu.com/150x50/capsule/webpay/transparent/{$merchantID}"
+                 alt="{l s='khipu WebPay' mod='khipupayment'}"/>
+            {l s='khipu WebPay' mod='khipupayment'}
+        </a>
+    </p>
+{/if}

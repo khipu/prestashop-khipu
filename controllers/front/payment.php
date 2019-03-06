@@ -53,16 +53,13 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
             true
         );
 
-
         $currency = Currency::getCurrencyInstance($cart->id_currency);
 
         $precision = 0; //CLP $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
 
-
         $interval = new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H');
         $timeout = new DateTime('now');
         $timeout->add($interval);
-
 
         $opts = array(
             'transaction_id' => $cart->id

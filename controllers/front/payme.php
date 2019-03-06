@@ -42,7 +42,6 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
 
         $customer = $this->context->customer;
 
-
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
