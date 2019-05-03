@@ -24,7 +24,7 @@
 
 
 <h2>{l s='Escoge el banco para pagar' mod='khipupayment'}</h2>
-<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
 <form method='POST' action='{$action|escape:'htmlall':'UTF-8'}' class='form form-horizontal'>
 {foreach from=$request item=value key=key}
     {if $key neq "fc" && $key neq "module" && $key neq "controller"}

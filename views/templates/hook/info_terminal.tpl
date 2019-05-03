@@ -24,5 +24,5 @@
 *}
 
 <div class="alert">
-    <p>khipu es una aplicación simple y segura para pagar con tu banco a través de una transferencia, evita errores al escribir datos y brinda protección adicional contra algunos tipos de ataque, como lo son el Phishing y la clonación de datos. Si no has instalado la aplicación, la página de pago te ayudará a instalarla. ESTA ES LA OPCIÓN RECOMENDADA.</p>
+    <p>khipu es una aplicación simple y segura para pagar con tu banco a través de una transferencia, evita errores al escribir datos y brinda protección adicional contra algunos tipos de ataque, como lo son el Phishing y la clonación de datos. Verás un código QR, captúralo con tu móvil para pagar. ESTA ES LA OPCIÓN RECOMENDADA.</p>
 </div>

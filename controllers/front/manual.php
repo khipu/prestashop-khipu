@@ -87,7 +87,6 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
             $createPaymentResponse = $payments->paymentsPost(Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
                 , $currency->iso_code
                 , Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), $precision)
-                , $cart->id
                 , $opts);
         } catch (\Khipu\ApiException $exception) {
             $this->context->smarty->assign(

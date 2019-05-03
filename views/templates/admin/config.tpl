@@ -67,7 +67,7 @@
                             <div class="col-sm-9">
                                 <input type="checkbox" name="simpleTransfer" {if $data_simpleTransfer}checked{/if} value="1">Transferencia simplificada (con terminal de pagos khipu)<br>
                                 <input type="checkbox" name="regularTransfer" {if $data_regularTransfer}checked{/if} value="1">Transferencia normal<br>
-                                <input type="checkbox" name="webpayTransfer" {if $data_webpay}checked{/if} value="1">khipu WebPay<br>
+                                <input type="checkbox" name="webpay" {if $data_webpay}checked{/if} value="1">khipu WebPay<br>
                             </div>
                     </div>
                     <div class="form-group row">

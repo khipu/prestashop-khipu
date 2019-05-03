@@ -24,7 +24,7 @@
 <div id="wait-msg" class="alert alert-info">
     Estamos iniciando la aplicación khipu, por favor espera unos segundos.<br>
     No cierres esta página, una vez que completes el pago serás redirigido automáticamente.<br><br>
-    Si pasado unos segundos no se ha abierto la aplicación<br><a href="javascript:openKhipu();" class="btn btn-default">Pincha este botón para abrirla</a>
+    Verás un código QR, captúralo con tu movil.</a>
 </div>
 <div id="khipu-chrome-extension-div" style="display: none"></div>
 <script>
