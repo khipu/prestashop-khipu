@@ -24,5 +24,5 @@
 *}
 
 <div class="alert">
-    <p>Debes ingresar el rut de la cuenta corriente o vista conque pagarás, luego se te entregarán todos los datospara que puedas realizar la transferencia desde elportal web o móvil de tu banco. Debes tener cuidado, elmonto a transferir debe ser el que se te ha informadoque realices, así el pago se procesará con éxito.</p>
+    <p>Debes ingresar el rut de la cuenta corriente o vista con que pagarás, luego se te entregarán todos los datos para que puedas realizar la transferencia desde el portal web o móvil de tu banco. Debes tener cuidado, el monto a transferir debe ser el que se te ha informado que realices, así el pago se procesará con éxito.</p>
 </div>

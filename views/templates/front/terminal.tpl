@@ -22,9 +22,7 @@
 {assign var='current_step' value='payment'}
 
 <div id="wait-msg" class="alert alert-info">
-    Estamos iniciando la aplicación khipu, por favor espera unos segundos.<br>
-    No cierres esta página, una vez que completes el pago serás redirigido automáticamente.<br><br>
-    Verás un código QR, captúralo con tu movil.</a>
+    Te estamos redirigiendo a la página de khipu, verás un código QR, captúralo con tu movil.<br>
 </div>
 <div id="khipu-chrome-extension-div" style="display: none"></div>
 <script>
