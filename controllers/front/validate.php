@@ -38,6 +38,18 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
         $mod_id = Module::getInstanceByName($order->module);
 
         if (Tools::getValue('return') == 'cancel') {
+            $khipu_payment = new KhipuPayment();
+            $this->module->validateOrder(
+                    (int)self::$cart->id,
+                    (int)Configuration::get('PS_OS_CANCELED'),
+                    (float)self::$cart->getOrderTotal(),
+                    $khipu_payment->displayName,
+                    null,
+                    array(),
+                    null,
+                    false,
+                    self::$cart->secure_key
+                );
             Tools::redirect(
                 Tools::getShopDomainSsl(
                     true,
@@ -47,14 +59,31 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
 
         } else {
             if (Tools::getValue('return') == 'ok') {
-                Tools::redirect(
-                    Tools::getShopDomainSsl(
-                        true,
-                        true
-                    ) . __PS_BASE_URI__ . 'index.php?controller=order-confirmation&id_cart=' . $cart_id
-                    . '&id_module=' . (int)$mod_id->id . '&id_order=' . $order->id . '&key=' . $customer->secure_key
-                    . '&status=OPEN'
-                );
+                if($order->current_state == (int)Configuration::get('PS_OS_PAYMENT')) {
+                    Tools::redirect(
+                        Tools::getShopDomainSsl(
+                            true,
+                            true
+                        ) . __PS_BASE_URI__ . 'index.php?controller=order-confirmation&id_cart=' . $cart_id
+                        . '&id_module=' . (int)$mod_id->id . '&id_order=' . $order->id . '&key=' . $customer->secure_key
+                        . '&status=OPEN'
+                    );                    
+                } else {
+                    $khipu_payment = new KhipuPayment();
+                    $this->module->validateOrder(
+                        (int)self::$cart->id,
+                        (int)Configuration::get('PS_OS_KHIPU_OPEN'),
+                        (float)self::$cart->getOrderTotal(),
+                        $khipu_payment->displayName,
+                        null,
+                        array(),
+                        null,
+                        false,
+                        self::$cart->secure_key
+                    );
+
+                    $this->setTemplate('module:khipupayment/views/templates/front/khipu_verifying.tpl');
+                }
             }
         }
     }

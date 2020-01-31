@@ -35,7 +35,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.2';
+        $this->version = '4.0.3';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
@@ -48,8 +48,8 @@ class KhipuPayment extends PaymentModule
         $this->bootstrap = true;
         parent::__construct();
 
-        $this->displayName = $this->l('Khipu');
-        $this->description = $this->l('Paga usando Khipu');
+        $this->displayName = $this->l('khipu');
+        $this->description = $this->l('Paga usando khipu');
 
         if (!count(Currency::checkPaymentCurrencies($this->id))) {
             $this->warning = $this->l('No currency has been set for this module.');
@@ -172,7 +172,7 @@ class KhipuPayment extends PaymentModule
     public function getKhipuTerminalPayment()
     {
         $terminal = new PaymentOption();
-        $terminal->setCallToActionText($this->l('Paga usando Khipu'))
+        $terminal->setCallToActionText($this->l('Paga usando khipu'))
             ->setAction($this->context->link->getModuleLink($this->name, 'bankselect', array(), true))
             ->setAdditionalInformation(
                 $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_terminal.tpl')

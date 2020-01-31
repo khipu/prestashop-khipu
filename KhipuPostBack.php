@@ -18,7 +18,7 @@
 class KhipuPostback
 {
 
-    const PLUGIN_VERSION = '4.0.2';
+    const PLUGIN_VERSION = '4.0.3';
 
     public function init()
     {
@@ -35,6 +35,7 @@ class KhipuPostback
 
     private function handlePOST()
     {
+        require_once(__DIR__ . '/khipupayment.php');
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
@@ -45,22 +46,34 @@ class KhipuPostback
 
         try {
             $paymentResponse = $payments->paymentsGet(Tools::getValue('notification_token'));
-        } catch(\Khipu\ApiException $exception) {
+        } catch (\Khipu\ApiException $exception) {
             error_log(print_r($exception->getResponseObject(), TRUE));
             return;
         }
 
-        $order = new Order(Order::getOrderByCartId($paymentResponse->getTransactionId()));
+        $cart = new Cart((int)$paymentResponse->getTransactionId());
 
-        $cart = Cart::getCartByOrderId($order->id);
+        if (!Order::getOrderByCartId($cart->id)) {
+            $khipu_payment = new KhipuPayment();
+            $khipu_payment->validateOrder(
+                (int)$cart->id,
+                (int)Configuration::get('PS_OS_PAYMENT'),
+                (float)$cart->getOrderTotal(),
+                $khipu_payment->displayName,
+                null,
+                array(),
+                null,
+                false,
+                $cart->secure_key);
+        }
 
-        //$currency = Currency::getCurrency($cart->id_currency);
+        $order = new Order(Order::getOrderByCartId($cart->id));
         $currency = Currency::getCurrencyInstance($cart->id_currency);
 
         $precision = 0;
-        if($currency->iso_code =='CLP'){
+        if ($currency->iso_code == 'CLP') {
             $precision = 0;
-        } else if ($currency->iso_code == 'BOB'){
+        } else if ($currency->iso_code == 'BOB') {
             $precision = 2;
         }
 
@@ -72,7 +85,7 @@ class KhipuPostback
         ) {
             $orders = Order::getByReference($order->reference);
             foreach ($orders as $referenced_order) {
-                if($referenced_order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+                if ($referenced_order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
                     $referenced_order->setCurrentState((int)Configuration::get('PS_OS_PAYMENT'));
                 }
             }

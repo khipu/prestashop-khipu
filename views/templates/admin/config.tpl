@@ -22,7 +22,7 @@
     <div class="row">
         <img src="{$img_header|escape:'htmlall':'UTF-8'}"/>
 
-        <h2>{l s='Pasarela de pagos khipu' mod='khipupayment'}</h2>
+        <h2>{l s='Solución de pagos khipu' mod='khipupayment'}</h2>
     </div>
 
     <div class="panel panel-info">
