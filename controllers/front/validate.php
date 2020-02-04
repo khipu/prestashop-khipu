@@ -11,7 +11,7 @@
  * to license@prestashop.com so we can send you a copy immediately.
  *
  * @author    khipu <support@khipu.com>
- * @copyright 2007-2015 khipu SpA
+ * @copyright 2007-2020 khipu SpA
  * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
@@ -38,18 +38,6 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
         $mod_id = Module::getInstanceByName($order->module);
 
         if (Tools::getValue('return') == 'cancel') {
-            $khipu_payment = new KhipuPayment();
-            $this->module->validateOrder(
-                    (int)self::$cart->id,
-                    (int)Configuration::get('PS_OS_CANCELED'),
-                    (float)self::$cart->getOrderTotal(),
-                    $khipu_payment->displayName,
-                    null,
-                    array(),
-                    null,
-                    false,
-                    self::$cart->secure_key
-                );
             Tools::redirect(
                 Tools::getShopDomainSsl(
                     true,
@@ -59,7 +47,8 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
 
         } else {
             if (Tools::getValue('return') == 'ok') {
-                if($order->current_state == (int)Configuration::get('PS_OS_PAYMENT')) {
+                if($order && ($order->current_state == (int)Configuration::get('PS_OS_PAYMENT') ||
+                    $order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN'))) {
                     Tools::redirect(
                         Tools::getShopDomainSsl(
                             true,
@@ -67,21 +56,8 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
                         ) . __PS_BASE_URI__ . 'index.php?controller=order-confirmation&id_cart=' . $cart_id
                         . '&id_module=' . (int)$mod_id->id . '&id_order=' . $order->id . '&key=' . $customer->secure_key
                         . '&status=OPEN'
-                    );                    
-                } else {
-                    $khipu_payment = new KhipuPayment();
-                    $this->module->validateOrder(
-                        (int)self::$cart->id,
-                        (int)Configuration::get('PS_OS_KHIPU_OPEN'),
-                        (float)self::$cart->getOrderTotal(),
-                        $khipu_payment->displayName,
-                        null,
-                        array(),
-                        null,
-                        false,
-                        self::$cart->secure_key
                     );
-
+                } else {
                     $this->setTemplate('module:khipupayment/views/templates/front/khipu_verifying.tpl');
                 }
             }

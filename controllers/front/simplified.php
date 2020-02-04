@@ -11,20 +11,24 @@
  * to license@prestashop.com so we can send you a copy immediately.
  *
  * @author    khipu <support@khipu.com>
- * @copyright 2007-2015 khipu SpA
+ * @copyright 2007-2020 khipu SpA
  * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
-class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
+class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
 {
 
     public function initContent()
     {
+        $this->display_column_left = false;
+        $this->display_column_right = false;
+
         $cart = $this->context->cart;
 
         parent::initContent();
 
         $customer = $this->context->customer;
+
 
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
@@ -42,11 +46,7 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
 
         $currency = Currency::getCurrencyInstance($cart->id_currency);
 
-        $precision = 0; //CLP $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
-
-        $interval = new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H');
-        $timeout = new DateTime('now');
-        $timeout->add($interval);
+        $precision = 0; //CLP $currency->decimals * _PS_PRICE_COMPUTE_PRECISION_;
 
         $opts = array(
             'transaction_id' => $cart->id
@@ -62,42 +62,23 @@ class KhipuPaymentPaymentModuleFrontController extends ModuleFrontController
             'notify_api_version' => '1.3'
         ,
             'payer_email' => $customer->email
-        ,
-            'expires_date' => $timeout
-        ,
-            'bank_id' => Tools::getValue('bank-id')
         );
 
         try {
-            $createPaymentResponse = $payments->paymentsPost(
-                Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
+            $createPaymentResponse = $payments->paymentsPost(Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
                 , $currency->iso_code
                 , Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), $precision)
-                , $opts
-            );
+                , $opts);
         } catch (\Khipu\ApiException $exception) {
             $this->context->smarty->assign(
-                array(
-                    'error' => $exception->getResponseObject()
-                )
-            );
+                                    array(
+                                            'error' => $exception->getResponseObject()
+                                        )
+                                    );
             $this->setTemplate('module:khipupayment/views/templates/front/khipu_error.tpl');
             return;
         }
 
-        if (!$createPaymentResponse->getReadyForTerminal()) {
-            Tools::redirect($createPaymentResponse->getTransferUrl());
-            return;
-        }
-
-
-        $query_string = "&payment_id=" . urlencode($createPaymentResponse->getPaymentId())
-            . "&url=" . urlencode($createPaymentResponse->getPaymentUrl());
-
-        Tools::redirect(
-            $shopDomainSsl
-            . __PS_BASE_URI__ . "index.php?fc=module&module={$this->module->name}&controller=terminal"
-            . $query_string
-        );
+        Tools::redirect($createPaymentResponse->getSimplifiedTransferUrl());
     }
 }

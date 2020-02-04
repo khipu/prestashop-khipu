@@ -11,14 +11,14 @@
  * to license@prestashop.com so we can send you a copy immediately.
  *
  * @author    khipu <support@khipu.com>
- * @copyright 2007-2015 khipu SpA
+ * @copyright 2007-2020 khipu SpA
  * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
 class KhipuPostback
 {
 
-    const PLUGIN_VERSION = '4.0.3';
+    const PLUGIN_VERSION = '4.0.4';
 
     public function init()
     {
@@ -52,24 +52,9 @@ class KhipuPostback
         }
 
         $cart = new Cart((int)$paymentResponse->getTransactionId());
-
-        if (!Order::getOrderByCartId($cart->id)) {
-            $khipu_payment = new KhipuPayment();
-            $khipu_payment->validateOrder(
-                (int)$cart->id,
-                (int)Configuration::get('PS_OS_PAYMENT'),
-                (float)$cart->getOrderTotal(),
-                $khipu_payment->displayName,
-                null,
-                array(),
-                null,
-                false,
-                $cart->secure_key);
-        }
-
-        $order = new Order(Order::getOrderByCartId($cart->id));
         $currency = Currency::getCurrencyInstance($cart->id_currency);
 
+        //$precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
         $precision = 0;
         if ($currency->iso_code == 'CLP') {
             $precision = 0;
@@ -77,12 +62,26 @@ class KhipuPostback
             $precision = 2;
         }
 
-        //$precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
-
         if (Configuration::get('KHIPU_MERCHANTID') == $paymentResponse->getReceiverId()
             && $paymentResponse->getStatus() == 'done'
             && Tools::ps_round((float)($cart->getOrderTotal(true, Cart::BOTH)), $precision) == $paymentResponse->getAmount()
         ) {
+            if (!Order::getOrderByCartId($cart->id)) {
+                $khipu_payment = new KhipuPayment();
+                $khipu_payment->validateOrder(
+                    (int)$cart->id,
+                    (int)Configuration::get('PS_OS_KHIPU_OPEN'),
+                    (float)$cart->getOrderTotal(),
+                    $khipu_payment->displayName,
+                    null,
+                    array(),
+                    null,
+                    false,
+                    $cart->secure_key);
+            }
+
+            $order = new Order(Order::getOrderByCartId($cart->id));
+
             $orders = Order::getByReference($order->reference);
             foreach ($orders as $referenced_order) {
                 if ($referenced_order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {

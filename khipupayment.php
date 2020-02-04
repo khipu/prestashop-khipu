@@ -11,7 +11,7 @@
  * to license@prestashop.com so we can send you a copy immediately.
  *
  * @author    khipu <support@khipu.com>
- * @copyright 2007-2015 khipu SpA
+ * @copyright 2007-2020 khipu SpA
  * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
@@ -35,7 +35,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.3';
+        $this->version = '4.0.4';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
@@ -62,10 +62,6 @@ class KhipuPayment extends PaymentModule
         $this->webpay = Configuration::get('KHIPU_WEBPAY_ENABLED');
         $this->notify_url = Configuration::get('KHIPU_NOTIFY_URL');
         $this->postback_url = Configuration::get('KHIPU_POSTBACK_URL');
-
-        $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get(
-            'KHIPU_HOURS_TIMEOUT'
-        ) : 6);
     }
 
 
@@ -135,7 +131,7 @@ class KhipuPayment extends PaymentModule
             case "CLP":
                 $payment_options = [];
                 if(Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED')){
-                    $payment_options[] = $this->getKhipuTerminalPayment();
+                    $payment_options[] = $this->getKhipuSimplifiedTransferPayment();
                 }
                 if(Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED')) {
                     $payment_options[] = $this->getKhipuNormalTransferPayment();
@@ -148,7 +144,7 @@ class KhipuPayment extends PaymentModule
                     !Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED') &&
                     !Configuration::get('KHIPU_WEBPAY_ENABLED')
                 ){
-                    $payment_options[] = $this->getKhipuTerminalPayment();
+                    $payment_options[] = $this->getKhipuSimplifiedTransferPayment();
                     $payment_options[] = $this->getKhipuNormalTransferPayment();
                     $payment_options[] = $this->getKhipuWebPay();
                 }
@@ -169,11 +165,11 @@ class KhipuPayment extends PaymentModule
         return $payment_options;
     }
 
-    public function getKhipuTerminalPayment()
+    public function getKhipuSimplifiedTransferPayment()
     {
         $terminal = new PaymentOption();
         $terminal->setCallToActionText($this->l('Paga usando khipu'))
-            ->setAction($this->context->link->getModuleLink($this->name, 'bankselect', array(), true))
+            ->setAction($this->context->link->getModuleLink($this->name, 'simplified', array(), true))
             ->setAdditionalInformation(
                 $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_terminal.tpl')
             )
@@ -234,10 +230,6 @@ class KhipuPayment extends PaymentModule
             Configuration::updateValue('KHIPU_NOTIFY_URL', Tools::getValue('notify_url'));
             Configuration::updateValue('KHIPU_POSTBACK_URL', Tools::getValue('postback_url'));
 
-            if ((int)Tools::getValue('hoursTimeout') > 0) {
-                Configuration::updateValue('KHIPU_HOURS_TIMEOUT', (int)Tools::getValue('hoursTimeout'));
-            }
-
 
             $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
             $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
@@ -247,10 +239,6 @@ class KhipuPayment extends PaymentModule
             $this->webpay = Configuration::get('KHIPU_WEBPAY_ENABLED');
             $this->notify_url = Configuration::get('KHIPU_NOTIFY_URL');
             $this->postback_url = Configuration::get('KHIPU_POSTBACK_URL');
-
-            $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get(
-                'KHIPU_HOURS_TIMEOUT'
-            ) : 6);
         }
 
 
@@ -259,7 +247,6 @@ class KhipuPayment extends PaymentModule
             'post_url' => $_SERVER['REQUEST_URI'],
             'data_merchantid' => $this->merchantID,
             'data_secretcode' => $this->secretCode,
-            'data_hoursTimeout' => $this->hoursTimeout,
             'data_simpleTransfer' => $this->simpleTransfer,
             'data_regularTransfer' => $this->regularTransfer,
             'data_payme' => $this->payme,

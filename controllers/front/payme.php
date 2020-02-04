@@ -11,7 +11,7 @@
  * to license@prestashop.com so we can send you a copy immediately.
  *
  * @author    khipu <support@khipu.com>
- * @copyright 2007-2015 khipu SpA
+ * @copyright 2007-2020 khipu SpA
  * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
@@ -47,10 +47,6 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
 
         $precision = 2; //BOB $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
 
-        $interval = new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H');
-        $timeout = new DateTime('now');
-        $timeout->add($interval);
-
         $opts = array(
             'transaction_id' => $cart->id
         ,
@@ -65,8 +61,6 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
             'notify_api_version' => '1.3'
         ,
             'payer_email' => $customer->email
-        ,
-            'expires_date' => $timeout
         );
 
         try {

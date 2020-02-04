@@ -10,7 +10,7 @@
 * to license@prestashop.com so we can send you a copy immediately.
 *
 *  @author    khipu<support@khipu.com>
-*  @copyright 2007-2015 khipu SpA
+*  @copyright 2007-2020 khipu SpA
 *  @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
 *  International Registered Trademark & Property of PrestaShop SA
 *}
@@ -83,16 +83,6 @@
                         <div class="col-sm-9">
                             <input type="text" name="secretCode" class="form-control" id="secretCode"
                                    value="{$data_secretcode|escape:'htmlall':'UTF-8'}"/>
-                        </div>
-                    </div>
-
-
-                    <div class="form-group row">
-                        <label for="hoursTimeout"
-                               class="col-sm-3 col-form-label">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
-                        <div class="col-sm-9">
-                            <input type="number" id="hoursTimeout" class="form-control" name="hoursTimeout"
-                                   value="{$data_hoursTimeout|escape:'htmlall':'UTF-8'}"/>
                         </div>
                     </div>
 

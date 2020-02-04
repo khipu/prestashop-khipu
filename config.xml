@@ -2,7 +2,7 @@
 <module>
     <name>khipupayment</name>
     <displayName><![CDATA[khipu]]></displayName>
-    <version><![CDATA[4.0.3]]></version>
+    <version><![CDATA[4.0.4]]></version>
     <description><![CDATA[Pago usando khipu]]></description>
     <author><![CDATA[khipu]]></author>
     <tab><![CDATA[payments_gateways]]></tab>
