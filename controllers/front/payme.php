@@ -38,6 +38,8 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
             self::$cart->secure_key
         );
 
+        $order = new Order(Order::getOrderByCartId($cart->id));
+
         parent::initContent();
 
         $customer = $this->context->customer;
@@ -65,15 +67,13 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
         $timeout->add($interval);
 
         $opts = array(
-            'transaction_id' => $cart->id
+            'transaction_id' => $order->reference
         ,
-            'return_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
-                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=ok&cartId=" . $cart->id
+            'return_url' => Context::getContext()->link->getModuleLink($khipu_payment->name, 'validate', array("return"=>"ok", "reference"=>$order->reference))
         ,
-            'cancel_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
-                . "index.php?fc=module&module={$khipu_payment->name}&controller=validate&return=cancel&cartId=" . $cart->id
+            'cancel_url' => Context::getContext()->link->getModuleLink($khipu_payment->name, 'validate', array("return"=>"cancel", "reference"=>$order->reference))
         ,
-            'notify_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php"
+            'notify_url' => Context::getContext()->link->getModuleLink($khipu_payment->name, 'validate', array())
         ,
             'notify_api_version' => '1.3'
         ,

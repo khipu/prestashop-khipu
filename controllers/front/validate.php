@@ -32,29 +32,42 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
 
     private function handleGET()
     {
-        $cart_id = Tools::getValue('cartId');
-        $order = new Order(Order::getOrderByCartId($cart_id));
+        $reference = Tools::getValue('reference');
+        $orders = Order::getByReference($reference);
+        if(count($orders)==0) {
+            exit();
+        }
+        $order = $orders[0];
+
         $customer = $order->getCustomer();
-        $mod_id = Module::getInstanceByName($order->module);
 
         if (Tools::getValue('return') == 'cancel') {
+            if($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+                $khipu_payment = new KhipuPayment();
+                $khipu_payment->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
+            }
+
             Tools::redirect(
-                Tools::getShopDomainSsl(
-                    true,
-                    true
-                ) . __PS_BASE_URI__ . 'index.php?controller=cart&action=show&id_cart=' . $cart_id
+                Context::getContext()->link->getPageLink('order', true, null, 'submitReorder&id_order=' . $order->id)
             );
 
         } else {
             if (Tools::getValue('return') == 'ok') {
-                Tools::redirect(
-                    Tools::getShopDomainSsl(
-                        true,
-                        true
-                    ) . __PS_BASE_URI__ . 'index.php?controller=order-confirmation&id_cart=' . $cart_id
-                    . '&id_module=' . (int)$mod_id->id . '&id_order=' . $order->id . '&key=' . $customer->secure_key
-                    . '&status=OPEN'
-                );
+                if($this->context->customer->isLogged()) {
+                    Tools::redirect(
+                        Context::getContext()->link->getPageLink(
+                            'order-detail', true, null,
+                            array("id_order" => $order->id)
+                        )
+                    );
+                } else {
+                    Tools::redirect(
+                        Context::getContext()->link->getPageLink(
+                            'guest-tracking', true, null,
+                            array("order_reference" => $order->reference, "email" => $customer->email)
+                        )
+                    );
+                }
             }
         }
     }

@@ -47,10 +47,6 @@
         <div class="panel-body">
             <form action="{$post_url|escape:'htmlall':'UTF-8'}" method="post" class="form-horizontal">
                 <fieldset class="form-group">
-                    <input type="hidden" id="notify_url" name="notify_url"
-                           value="{$khipu_notify_url|escape:'htmlall':'UTF-8'}"/>
-                    <input type="hidden" id="postback_url" name="postback_url"
-                           value="{$khipu_postback_url|escape:'htmlall':'UTF-8'}"/>
                     <div class="form-group row">
                         <label for="merchantID"
                                class="col-sm-3 col-form-label">{l s='ID Cobrador' mod='khipupayment'}</label>

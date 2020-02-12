@@ -17,7 +17,7 @@
 
 {if $simpleTransfer}
     <p class="payment_module">
-        <a href="{$link->getModuleLink('khipupayment', 'bankselect')|escape:'htmlall':'UTF-8'}"
+        <a href="{$link->getModuleLink('khipupayment', 'simplified')|escape:'htmlall':'UTF-8'}"
            title="{l s='Transferencia simplificada usando khipu' mod='khipupayment'}">
             <img src="//bi.khipu.com/150x50/capsule/khipu/transparent/{$merchantID}"
                  alt="{l s='Transferencia simplificada' mod='khipupayment'}"/>
