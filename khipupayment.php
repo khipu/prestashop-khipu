@@ -57,10 +57,6 @@ class KhipuPayment extends PaymentModule
         }
         $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
         $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
-        $this->simpleTransfer = Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED');
-        $this->regularTransfer = Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED');
-        $this->payme = Configuration::get('KHIPU_PAYME_ENABLED');
-        $this->webpay = Configuration::get('KHIPU_WEBPAY_ENABLED');
 
         $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get(
             'KHIPU_HOURS_TIMEOUT'
@@ -113,13 +109,26 @@ class KhipuPayment extends PaymentModule
             parent::uninstall()
             && Configuration::deleteByName('KHIPU_MERCHANTID')
             && Configuration::deleteByName('KHIPU_SECRETCODE')
-            && Configuration::deleteByName('KHIPU_SIMPLE_TRANSFER_ENABLED')
-            && Configuration::deleteByName('KHIPU_REGULAR_TRANSFER_ENABLED')
-            && Configuration::deleteByName('KHIPU_PAYME_ENABLED')
-            && Configuration::deleteByName('KHIPU_WEBPAY_ENABLED')
             && $this->unregisterHook('paymentOptions')
             && $this->unregisterHook('paymentReturn');
 
+    }
+
+    private function getPaymentMethod(Khipu\Model\PaymentMethodsResponse $paymentMethods, $id) {
+
+        foreach ($paymentMethods->getPaymentMethods() as $paymentMethod){
+            if(strcmp($paymentMethod->getId(), $id) == 0 ){
+                return $paymentMethod;
+            }
+        }
+        return null;
+    }
+
+    private function addMissingProtocol($url){
+        if (strpos($url, 'http') !== 0 && strpos($url, '//') !== 0) {
+            return '//'.$url;
+        }
+        return $url;
     }
 
     public function hookPaymentOptions($params)
@@ -128,39 +137,38 @@ class KhipuPayment extends PaymentModule
             return;
         }
         $this->cancelExpiredOrders();
+        $configuration = new Khipu\Configuration();
+        $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
+        $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
+        $configuration->setPlatform('prestashop-khipu', $this->module->version);
+
+
+        $client = new Khipu\ApiClient($configuration);
+        $paymentMethodsApi = new Khipu\Client\PaymentMethodsApi($client);
+        $paymentMethodsResponse = $paymentMethodsApi->merchantsIdPaymentMethodsGet(Configuration::get('KHIPU_MERCHANTID'));
+
+
         $payment_options = array();
         switch ($this->context->currency->iso_code) {
             case "CLP":
-                $payment_options = [];
-                if(Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED')){
-                    $payment_options[] = $this->getKhipuSimplifiedTransferPayment();
+                if($method = $this->getPaymentMethod($paymentMethodsResponse, "SIMPLIFIED_TRANSFER")){
+                    $payment_options[] = $this->getKhipuSimplifiedTransferPayment($method);
                 }
-                if(Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED')) {
-                    $payment_options[] = $this->getKhipuNormalTransferPayment();
+                if($method = $this->getPaymentMethod($paymentMethodsResponse, "REGULAR_TRANSFER")){
+                    $payment_options[] = $this->getKhipuNormalTransferPayment($method);
                 }
-                if(Configuration::get('KHIPU_WEBPAY_ENABLED')) {
-                    $payment_options[] = $this->getKhipuWebPay();
-                }
-                if(
-                    !Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED') &&
-                    !Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED') &&
-                    !Configuration::get('KHIPU_WEBPAY_ENABLED')
-                ){
-                    $payment_options[] = $this->getKhipuSimplifiedTransferPayment();
-                    $payment_options[] = $this->getKhipuNormalTransferPayment();
-                    $payment_options[] = $this->getKhipuWebPay();
+                if($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY")){
+                    $payment_options[] = $this->getKhipuWebPay($method);
+                } else if($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY_PSP")) {
+                    $payment_options[] = $this->getKhipuWebPay($method);
                 }
                 break;
 
             case "BOB":
-                $payment_options = [
-                    $this->getKhipuPayMe()
-                ];
-                break;
             case "USD":
-                $payment_options = [
-                    $this->getKhipuPayMe()
-                ];
+                if($method = $this->getPaymentMethod($paymentMethodsResponse, "PAY_ME")){
+                    $payment_options[] = $this->getKhipuPayMe($method);
+                }
                 break;
 
         }
@@ -180,20 +188,20 @@ class KhipuPayment extends PaymentModule
         }
     }
 
-    public function getKhipuSimplifiedTransferPayment()
+    public function getKhipuSimplifiedTransferPayment(Khipu\Model\PaymentMethodItem $paymentMethod)
     {
-        $terminal = new PaymentOption();
-        $terminal->setCallToActionText($this->l('Paga usando Khipu'))
+        $simplifiedTransfer = new PaymentOption();
+        $simplifiedTransfer->setCallToActionText($this->l('Paga usando Khipu'))
             ->setAction($this->context->link->getModuleLink($this->name, 'simplified', array(), true))
             ->setAdditionalInformation(
                 $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_simplified.tpl')
             )
-            ->setLogo('https://bi.khipu.com/150x50/capsule/khipu/transparent/' . $this->merchantID);
+            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
 
-        return $terminal;
+        return $simplifiedTransfer;
     }
 
-    public function getKhipuNormalTransferPayment()
+    public function getKhipuNormalTransferPayment(Khipu\Model\PaymentMethodItem $paymentMethod)
     {
         $normalTransfer = new PaymentOption();
         $normalTransfer->setCallToActionText($this->l('Transferencia Normal'))
@@ -201,12 +209,12 @@ class KhipuPayment extends PaymentModule
             ->setAdditionalInformation(
                 $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_normal.tpl')
             )
-            ->setLogo('https://bi.khipu.com/150x50/capsule/transfer/transparent/' . $this->merchantID);
+            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
 
         return $normalTransfer;
     }
 
-    public function getKhipuPayMe()
+    public function getKhipuPayMe(Khipu\Model\PaymentMethodItem $paymentMethod)
     {
         $payme = new PaymentOption();
         $payme->setCallToActionText($this->l('Paga mediante PayMe'))
@@ -214,12 +222,12 @@ class KhipuPayment extends PaymentModule
             ->setAdditionalInformation(
                 $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_payme.tpl')
             )
-            ->setLogo('https://bi.khipu.com/150x50/capsule/payme/transparent/' . $this->merchantID);
+            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
 
         return $payme;
     }
 
-    public function getKhipuWebPay()
+    public function getKhipuWebPay(Khipu\Model\PaymentMethodItem $paymentMethod)
     {
         $webpay = new PaymentOption();
         $webpay->setCallToActionText($this->l('Paga mediante WebPay'))
@@ -227,7 +235,7 @@ class KhipuPayment extends PaymentModule
             ->setAdditionalInformation(
                 $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_webpay.tpl')
             )
-            ->setLogo('https://bi.khipu.com/150x50/capsule/webpay/transparent/' . $this->merchantID);
+            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
 
         return $webpay;
     }
@@ -238,22 +246,13 @@ class KhipuPayment extends PaymentModule
         if (Tools::getIsset('khipu_updateSettings')) {
             Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
             Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
-            Configuration::updateValue('KHIPU_SIMPLE_TRANSFER_ENABLED', Tools::getValue('simpleTransfer'));
-            Configuration::updateValue('KHIPU_REGULAR_TRANSFER_ENABLED', Tools::getValue('regularTransfer'));
-            Configuration::updateValue('KHIPU_PAYME_ENABLED', Tools::getValue('payme'));
-            Configuration::updateValue('KHIPU_WEBPAY_ENABLED', Tools::getValue('webpay'));
 
             if ((int)Tools::getValue('hoursTimeout') > 0) {
                 Configuration::updateValue('KHIPU_HOURS_TIMEOUT', (int)Tools::getValue('hoursTimeout'));
             }
 
-
             $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
             $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
-            $this->simpleTransfer = Configuration::get('KHIPU_SIMPLE_TRANSFER_ENABLED');
-            $this->regularTransfer = Configuration::get('KHIPU_REGULAR_TRANSFER_ENABLED');
-            $this->payme = Configuration::get('KHIPU_PAYME_ENABLED');
-            $this->webpay = Configuration::get('KHIPU_WEBPAY_ENABLED');
 
             $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get(
                 'KHIPU_HOURS_TIMEOUT'
@@ -267,10 +266,6 @@ class KhipuPayment extends PaymentModule
             'data_merchantid' => $this->merchantID,
             'data_secretcode' => $this->secretCode,
             'data_hoursTimeout' => $this->hoursTimeout,
-            'data_simpleTransfer' => $this->simpleTransfer,
-            'data_regularTransfer' => $this->regularTransfer,
-            'data_payme' => $this->payme,
-            'data_webpay' => $this->webpay,
             'version' => $this->version,
             'api_version' => $this->apiVersion,
             'img_header' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/logo.png"

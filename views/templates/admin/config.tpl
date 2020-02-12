@@ -15,9 +15,6 @@
 *  International Registered Trademark & Property of PrestaShop SA
 *}
 
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"/>
-
-
 <div class="container">
     <div class="row">
         <img src="{$img_header|escape:'htmlall':'UTF-8'}"/>
@@ -54,23 +51,6 @@
                             <input type="text" id="merchantID" class="form-control" name="merchantID"
                                    value="{$data_merchantid|escape:'htmlall':'UTF-8'}"/>
                         </div>
-                    </div>
-
-
-                    <div class="form-group row">
-                            <label for="secretCode"
-                                   class="col-sm-3 col-form-label">{l s='Chile' mod='khipupayment'}</label>
-                            <div class="col-sm-9">
-                                <input type="checkbox" name="simpleTransfer" {if $data_simpleTransfer}checked{/if} value="1">Transferencia simplificada (con terminal de pagos khipu)<br>
-                                <input type="checkbox" name="regularTransfer" {if $data_regularTransfer}checked{/if} value="1">Transferencia normal<br>
-                                <input type="checkbox" name="webpay" {if $data_webpay}checked{/if} value="1">khipu WebPay<br>
-                            </div>
-                    </div>
-                    <div class="form-group row">
-                            <label for="secretCode"
-                               class="col-sm-3 col-form-label">{l s='Bolivia' mod='khipupayment'}</label>
-
-                            <div class="col-sm-9">Pago con Tarjeta bancaria</div>
                     </div>
 
                     <div class="form-group row">
