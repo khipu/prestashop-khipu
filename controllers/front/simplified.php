@@ -25,6 +25,21 @@ class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
 
         $cart = $this->context->cart;
 
+        $khipu_payment = new KhipuPayment();
+        $khipu_payment->validateOrder(
+            (int)self::$cart->id,
+            (int)Configuration::get('PS_OS_KHIPU_OPEN'),
+            (float)self::$cart->getOrderTotal(),
+            $khipu_payment->displayName,
+            null,
+            array(),
+            null,
+            false,
+            self::$cart->secure_key
+        );
+
+        $order = new Order(Order::getOrderByCartId($cart->id));
+
         parent::initContent();
 
         $customer = $this->context->customer;
@@ -33,7 +48,7 @@ class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', $this->module->version);
+        $configuration->setPlatform('prestashop-khipu', $khipu_payment->version);
 
 
         $client = new Khipu\ApiClient($configuration);
@@ -48,20 +63,24 @@ class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
 
         $precision = 0; //CLP $currency->decimals * _PS_PRICE_COMPUTE_PRECISION_;
 
+        $interval = new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H');
+        $timeout = new DateTime('now');
+        $timeout->add($interval);
+
         $opts = array(
-            'transaction_id' => $cart->id
+            'transaction_id' => $order->reference
         ,
-            'return_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
-                . "index.php?fc=module&module={$this->module->name}&controller=validate&return=ok&cartId=" . $cart->id
+            'return_url' => Context::getContext()->link->getModuleLink($khipu_payment->name, 'validate', array("return"=>"ok", "reference"=>$order->reference))
         ,
-            'cancel_url' => Tools::getShopDomainSsl(true, true) . __PS_BASE_URI__
-                . "index.php?fc=module&module={$this->module->name}&controller=validate&return=cancel&cartId=" . $cart->id
+            'cancel_url' => Context::getContext()->link->getModuleLink($khipu_payment->name, 'validate', array("return"=>"cancel", "reference"=>$order->reference))
         ,
-            'notify_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->module->name}/validate.php"
+            'notify_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php"
         ,
             'notify_api_version' => '1.3'
         ,
             'payer_email' => $customer->email
+        ,
+            'expires_date' => $timeout
         );
 
         try {

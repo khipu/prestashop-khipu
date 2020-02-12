@@ -22,7 +22,7 @@
     <div class="row">
         <img src="{$img_header|escape:'htmlall':'UTF-8'}"/>
 
-        <h2>{l s='Solución de pagos khipu' mod='khipupayment'}</h2>
+        <h2>{l s='Pasarela de pagos khipu' mod='khipupayment'}</h2>
     </div>
 
     <div class="panel panel-info">
@@ -47,10 +47,6 @@
         <div class="panel-body">
             <form action="{$post_url|escape:'htmlall':'UTF-8'}" method="post" class="form-horizontal">
                 <fieldset class="form-group">
-                    <input type="hidden" id="notify_url" name="notify_url"
-                           value="{$khipu_notify_url|escape:'htmlall':'UTF-8'}"/>
-                    <input type="hidden" id="postback_url" name="postback_url"
-                           value="{$khipu_postback_url|escape:'htmlall':'UTF-8'}"/>
                     <div class="form-group row">
                         <label for="merchantID"
                                class="col-sm-3 col-form-label">{l s='ID Cobrador' mod='khipupayment'}</label>
@@ -83,6 +79,16 @@
                         <div class="col-sm-9">
                             <input type="text" name="secretCode" class="form-control" id="secretCode"
                                    value="{$data_secretcode|escape:'htmlall':'UTF-8'}"/>
+                        </div>
+                    </div>
+
+
+                    <div class="form-group row">
+                        <label for="hoursTimeout"
+                               class="col-sm-3 col-form-label">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
+                        <div class="col-sm-9">
+                            <input type="number" id="hoursTimeout" class="form-control" name="hoursTimeout"
+                                   value="{$data_hoursTimeout|escape:'htmlall':'UTF-8'}"/>
                         </div>
                     </div>
 
