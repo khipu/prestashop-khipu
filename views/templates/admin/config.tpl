@@ -15,9 +15,6 @@
 *  International Registered Trademark & Property of PrestaShop SA
 *}
 
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"/>
-
-
 <div class="container">
     <div class="row">
         <img src="{$img_header|escape:'htmlall':'UTF-8'}"/>
@@ -47,10 +44,6 @@
         <div class="panel-body">
             <form action="{$post_url|escape:'htmlall':'UTF-8'}" method="post" class="form-horizontal">
                 <fieldset class="form-group">
-                    <input type="hidden" id="notify_url" name="notify_url"
-                           value="{$khipu_notify_url|escape:'htmlall':'UTF-8'}"/>
-                    <input type="hidden" id="postback_url" name="postback_url"
-                           value="{$khipu_postback_url|escape:'htmlall':'UTF-8'}"/>
                     <div class="form-group row">
                         <label for="merchantID"
                                class="col-sm-3 col-form-label">{l s='ID Cobrador' mod='khipupayment'}</label>
@@ -60,29 +53,22 @@
                         </div>
                     </div>
 
-
-                    <div class="form-group row">
-                            <label for="secretCode"
-                                   class="col-sm-3 col-form-label">{l s='Chile' mod='khipupayment'}</label>
-                            <div class="col-sm-9">
-                                <input type="checkbox" name="simpleTransfer" {if $data_simpleTransfer}checked{/if} value="1">Transferencia simplificada (con terminal de pagos khipu)<br>
-                                <input type="checkbox" name="regularTransfer" {if $data_regularTransfer}checked{/if} value="1">Transferencia normal<br>
-                                <input type="checkbox" name="webpay" {if $data_webpay}checked{/if} value="1">khipu WebPay<br>
-                            </div>
-                    </div>
-                    <div class="form-group row">
-                            <label for="secretCode"
-                               class="col-sm-3 col-form-label">{l s='Bolivia' mod='khipupayment'}</label>
-
-                            <div class="col-sm-9">Pago con Tarjeta bancaria</div>
-                    </div>
-
                     <div class="form-group row">
                         <label for="secretCode"
                                class="col-sm-3 col-form-label">{l s='Llave secreta' mod='khipupayment'}</label>
                         <div class="col-sm-9">
                             <input type="text" name="secretCode" class="form-control" id="secretCode"
                                    value="{$data_secretcode|escape:'htmlall':'UTF-8'}"/>
+                        </div>
+                    </div>
+
+
+                    <div class="form-group row">
+                        <label for="hoursTimeout"
+                               class="col-sm-3 col-form-label">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
+                        <div class="col-sm-9">
+                            <input type="number" id="hoursTimeout" class="form-control" name="hoursTimeout"
+                                   value="{$data_hoursTimeout|escape:'htmlall':'UTF-8'}"/>
                         </div>
                     </div>
 

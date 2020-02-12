@@ -32,33 +32,48 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
 
     private function handleGET()
     {
-        $cart_id = Tools::getValue('cartId');
-        $order = new Order(Order::getOrderByCartId($cart_id));
-        $customer = $order->getCustomer();
-        $mod_id = Module::getInstanceByName($order->module);
+        $reference = Tools::getValue('reference');
+        $orders = Order::getByReference($reference);
+        if (count($orders) == 0) {
+            Tools::redirect(
+                Context::getContext()->link->getPageLink(
+                    'order-detail', true, null,
+                    array("id_order" => $orders[0]->id)
+                )
+            );
+        }
+
+        $customer = $orders[0]->getCustomer();
 
         if (Tools::getValue('return') == 'cancel') {
+            foreach ($orders as $order) {
+                if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+                    $this->module->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
+                }
+            }
+
             Tools::redirect(
-                Tools::getShopDomainSsl(
-                    true,
-                    true
-                ) . __PS_BASE_URI__ . 'index.php?controller=cart&action=show&id_cart=' . $cart_id
+                Context::getContext()->link->getPageLink(
+                    'order', true, null, 'submitReorder&id_order=' . $orders[0]->id
+                )
             );
 
         } else {
             if (Tools::getValue('return') == 'ok') {
-                if($order && ($order->current_state == (int)Configuration::get('PS_OS_PAYMENT') ||
-                    $order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN'))) {
+                if ($this->context->customer->isLogged()) {
                     Tools::redirect(
-                        Tools::getShopDomainSsl(
-                            true,
-                            true
-                        ) . __PS_BASE_URI__ . 'index.php?controller=order-confirmation&id_cart=' . $cart_id
-                        . '&id_module=' . (int)$mod_id->id . '&id_order=' . $order->id . '&key=' . $customer->secure_key
-                        . '&status=OPEN'
+                        Context::getContext()->link->getPageLink(
+                            'order-detail', true, null,
+                            array("id_order" => $orders[0]->id)
+                        )
                     );
                 } else {
-                    $this->setTemplate('module:khipupayment/views/templates/front/khipu_verifying.tpl');
+                    Tools::redirect(
+                        Context::getContext()->link->getPageLink(
+                            'guest-tracking', true, null,
+                            array("order_reference" => $orders[0]->reference, "email" => $customer->email)
+                        )
+                    );
                 }
             }
         }
