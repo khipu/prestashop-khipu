@@ -34,37 +34,44 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
     {
         $reference = Tools::getValue('reference');
         $orders = Order::getByReference($reference);
-        if(count($orders)==0) {
-            exit();
+        if (count($orders) == 0) {
+            Tools::redirect(
+                Context::getContext()->link->getPageLink(
+                    'order-detail', true, null,
+                    array("id_order" => $orders[0]->id)
+                )
+            );
         }
-        $order = $orders[0];
 
-        $customer = $order->getCustomer();
+        $customer = $orders[0]->getCustomer();
 
         if (Tools::getValue('return') == 'cancel') {
-            if($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
-                $khipu_payment = new KhipuPayment();
-                $khipu_payment->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
+            foreach ($orders as $order) {
+                if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+                    $this->module->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
+                }
             }
 
             Tools::redirect(
-                Context::getContext()->link->getPageLink('order', true, null, 'submitReorder&id_order=' . $order->id)
+                Context::getContext()->link->getPageLink(
+                    'order', true, null, 'submitReorder&id_order=' . $orders[0]->id
+                )
             );
 
         } else {
             if (Tools::getValue('return') == 'ok') {
-                if($this->context->customer->isLogged()) {
+                if ($this->context->customer->isLogged()) {
                     Tools::redirect(
                         Context::getContext()->link->getPageLink(
                             'order-detail', true, null,
-                            array("id_order" => $order->id)
+                            array("id_order" => $orders[0]->id)
                         )
                     );
                 } else {
                     Tools::redirect(
                         Context::getContext()->link->getPageLink(
                             'guest-tracking', true, null,
-                            array("order_reference" => $order->reference, "email" => $customer->email)
+                            array("order_reference" => $orders[0]->reference, "email" => $customer->email)
                         )
                     );
                 }

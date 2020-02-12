@@ -25,12 +25,11 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
 
         $cart = $this->context->cart;
 
-        $khipu_payment = new KhipuPayment();
-        $khipu_payment->validateOrder(
+        $this->module->validateOrder(
             (int)self::$cart->id,
             (int)Configuration::get('PS_OS_KHIPU_OPEN'),
             (float)self::$cart->getOrderTotal(),
-            $khipu_payment->displayName,
+            $this->module->displayName,
             null,
             array(),
             null,
@@ -48,7 +47,7 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', $khipu_payment->version);
+        $configuration->setPlatform('prestashop-khipu', $this->module->version);
 
 
         $client = new Khipu\ApiClient($configuration);
@@ -70,11 +69,11 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
         $opts = array(
             'transaction_id' => $order->reference
         ,
-            'return_url' => Context::getContext()->link->getModuleLink($khipu_payment->name, 'validate', array("return"=>"ok", "reference"=>$order->reference))
+            'return_url' => Context::getContext()->link->getModuleLink($this->module->name, 'validate', array("return"=>"ok", "reference"=>$order->reference))
         ,
-            'cancel_url' => Context::getContext()->link->getModuleLink($khipu_payment->name, 'validate', array("return"=>"cancel", "reference"=>$order->reference))
+            'cancel_url' => Context::getContext()->link->getModuleLink($this->module->name, 'validate', array("return"=>"cancel", "reference"=>$order->reference))
         ,
-            'notify_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$khipu_payment->name}/validate.php"
+            'notify_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->module->name}/validate.php"
         ,
             'notify_api_version' => '1.3'
         ,

@@ -79,7 +79,6 @@ class KhipuPostback
 
         $cart = Cart::getCartByOrderId($order->id);
 
-        //$currency = Currency::getCurrency($cart->id_currency);
         $currency = Currency::getCurrencyInstance($cart->id_currency);
 
         $precision = 0;
@@ -88,8 +87,6 @@ class KhipuPostback
         } else if ($currency->iso_code == 'BOB'){
             $precision = 2;
         }
-
-        //$precision = $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
 
         if (Configuration::get('KHIPU_MERCHANTID') == $paymentResponse->getReceiverId()
             && $paymentResponse->getStatus() == 'done'
