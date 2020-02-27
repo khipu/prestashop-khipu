@@ -23,6 +23,8 @@ class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
         $this->display_column_left = false;
         $this->display_column_right = false;
 
+        parent::initContent();
+
         $cart = $this->context->cart;
 
         $this->module->validateOrder(
@@ -39,7 +41,7 @@ class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
 
         $order = new Order(Order::getOrderByCartId($cart->id));
 
-        parent::initContent();
+
 
         $customer = $this->context->customer;
 

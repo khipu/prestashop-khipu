@@ -36,7 +36,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.5';
+        $this->version = '4.0.6';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
@@ -114,19 +114,21 @@ class KhipuPayment extends PaymentModule
 
     }
 
-    private function getPaymentMethod(Khipu\Model\PaymentMethodsResponse $paymentMethods, $id) {
+    private function getPaymentMethod(Khipu\Model\PaymentMethodsResponse $paymentMethods, $id)
+    {
 
-        foreach ($paymentMethods->getPaymentMethods() as $paymentMethod){
-            if(strcmp($paymentMethod->getId(), $id) == 0 ){
+        foreach ($paymentMethods->getPaymentMethods() as $paymentMethod) {
+            if (strcmp($paymentMethod->getId(), $id) == 0) {
                 return $paymentMethod;
             }
         }
         return null;
     }
 
-    private function addMissingProtocol($url){
+    private function addMissingProtocol($url)
+    {
         if (strpos($url, 'http') !== 0 && strpos($url, '//') !== 0) {
-            return '//'.$url;
+            return '//' . $url;
         }
         return $url;
     }
@@ -151,22 +153,22 @@ class KhipuPayment extends PaymentModule
         $payment_options = array();
         switch ($this->context->currency->iso_code) {
             case "CLP":
-                if($method = $this->getPaymentMethod($paymentMethodsResponse, "SIMPLIFIED_TRANSFER")){
+                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "SIMPLIFIED_TRANSFER")) {
                     $payment_options[] = $this->getKhipuSimplifiedTransferPayment($method);
                 }
-                if($method = $this->getPaymentMethod($paymentMethodsResponse, "REGULAR_TRANSFER")){
+                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "REGULAR_TRANSFER")) {
                     $payment_options[] = $this->getKhipuNormalTransferPayment($method);
                 }
-                if($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY")){
+                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY")) {
                     $payment_options[] = $this->getKhipuWebPay($method);
-                } else if($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY_PSP")) {
+                } else if ($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY_PSP")) {
                     $payment_options[] = $this->getKhipuWebPay($method);
                 }
                 break;
 
             case "BOB":
             case "USD":
-                if($method = $this->getPaymentMethod($paymentMethodsResponse, "PAY_ME")){
+                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "PAY_ME")) {
                     $payment_options[] = $this->getKhipuPayMe($method);
                 }
                 break;
@@ -175,14 +177,15 @@ class KhipuPayment extends PaymentModule
         return $payment_options;
     }
 
-    public function cancelExpiredOrders() {
+    public function cancelExpiredOrders()
+    {
 
-        $result = Db::getInstance()->ExecuteS('SELECT `id_order` FROM `'._DB_PREFIX_.'orders` WHERE DATE_ADD(date_add, INTERVAL +'. Configuration::get('KHIPU_HOURS_TIMEOUT') .' HOUR) < \''.pSQL(date('Y-m-d H:i:00', time()))
-            .'\' AND current_state = '. Configuration::get('PS_OS_KHIPU_OPEN'));
+        $result = Db::getInstance()->ExecuteS('SELECT `id_order` FROM `' . _DB_PREFIX_ . 'orders` WHERE DATE_ADD(date_add, INTERVAL +' . Configuration::get('KHIPU_HOURS_TIMEOUT') . ' HOUR) < \'' . pSQL(date('Y-m-d H:i:00', time()))
+            . '\' AND current_state = ' . Configuration::get('PS_OS_KHIPU_OPEN'));
 
         foreach ($result AS $orderId) {
             $order = new Order(intval($orderId['id_order']));
-            if($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+            if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
                 $this->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
             }
         }
@@ -278,7 +281,7 @@ class KhipuPayment extends PaymentModule
 
     /**
      * Validate an order in database
-     * Function called from a payment module.
+     * Function called from a payment module
      *
      * @param int $id_cart
      * @param int $id_order_state
@@ -292,29 +295,15 @@ class KhipuPayment extends PaymentModule
      * @param Shop $shop
      *
      * @return bool
-     *
      * @throws PrestaShopException
      */
-    public function validateOrder(
-        $id_cart,
-        $id_order_state,
-        $amount_paid,
-        $payment_method = 'Unknown',
-        $message = null,
-        $extra_vars = array(),
-        $currency_special = null,
-        $dont_touch_amount = false,
-        $secure_key = false,
-        Shop $shop = null
-    )
+    public function validateOrder($id_cart, $id_order_state, $amount_paid, $payment_method = 'Unknown',
+                                  $message = null, $extra_vars = array(), $currency_special = null, $dont_touch_amount = false,
+                                  $secure_key = false, Shop $shop = null)
     {
         if (self::DEBUG_MODE) {
-            PrestaShopLogger::addLog(
-                'PaymentModule::validateOrder - Function called', 1, null, 'Cart', (int)$id_cart, true
-            );
+            PrestaShopLogger::addLog('PaymentModule::validateOrder - Function called', 1, null, 'Cart', (int)$id_cart, true);
         }
-        $OrderState = new OrderState((int)$id_order_state);
-
 
         if (!isset($this->context)) {
             $this->context = Context::getContext();
@@ -335,26 +324,19 @@ class KhipuPayment extends PaymentModule
 
         $order_status = new OrderState((int)$id_order_state, (int)$this->context->language->id);
         if (!Validate::isLoadedObject($order_status)) {
-            PrestaShopLogger::addLog(
-                'PaymentModule::validateOrder - Order Status cannot be loaded', 3, null, 'Cart', (int)$id_cart, true
-            );
-
+            PrestaShopLogger::addLog('PaymentModule::validateOrder - Order Status cannot be loaded', 3, null, 'Cart', (int)$id_cart, true);
             throw new PrestaShopException('Can\'t load Order status');
         }
 
         if (!$this->active) {
-            PrestaShopLogger::addLog(
-                'PaymentModule::validateOrder - Module is not active', 3, null, 'Cart', (int)$id_cart, true
-            );
+            PrestaShopLogger::addLog('PaymentModule::validateOrder - Module is not active', 3, null, 'Cart', (int)$id_cart, true);
             die(Tools::displayError());
         }
 
         // Does order already exists ?
         if (Validate::isLoadedObject($this->context->cart) && $this->context->cart->OrderExists() == false) {
             if ($secure_key !== false && $secure_key != $this->context->cart->secure_key) {
-                PrestaShopLogger::addLog(
-                    'PaymentModule::validateOrder - Secure key does not match', 3, null, 'Cart', (int)$id_cart, true
-                );
+                PrestaShopLogger::addLog('PaymentModule::validateOrder - Secure key does not match', 3, null, 'Cart', (int)$id_cart, true);
                 die(Tools::displayError());
             }
 
@@ -365,12 +347,9 @@ class KhipuPayment extends PaymentModule
 
             // If some delivery options are not defined, or not valid, use the first valid option
             foreach ($delivery_option_list as $id_address => $package) {
-                if (!isset($cart_delivery_option[$id_address]) || !array_key_exists(
-                        $cart_delivery_option[$id_address], $package
-                    )) {
+                if (!isset($cart_delivery_option[$id_address]) || !array_key_exists($cart_delivery_option[$id_address], $package)) {
                     foreach ($package as $key => $val) {
                         $cart_delivery_option[$id_address] = $key;
-
                         break;
                     }
                 }
@@ -391,9 +370,7 @@ class KhipuPayment extends PaymentModule
                 foreach ($delivery_option_list[$id_address][$key_carriers]['carrier_list'] as $id_carrier => $data) {
                     foreach ($data['package_list'] as $id_package) {
                         // Rewrite the id_warehouse
-                        $package_list[$id_address][$id_package]['id_warehouse'] = (int)$this->context->cart->getPackageIdWarehouse(
-                            $package_list[$id_address][$id_package], (int)$id_carrier
-                        );
+                        $package_list[$id_address][$id_package]['id_warehouse'] = (int)$this->context->cart->getPackageIdWarehouse($package_list[$id_address][$id_package], (int)$id_carrier);
                         $package_list[$id_address][$id_package]['id_carrier'] = $id_carrier;
                     }
                 }
@@ -405,56 +382,136 @@ class KhipuPayment extends PaymentModule
                 if (($rule = new CartRule((int)$cart_rule['obj']->id)) && Validate::isLoadedObject($rule)) {
                     if ($error = $rule->checkValidity($this->context, true, true)) {
                         $this->context->cart->removeCartRule((int)$rule->id);
-                        if (isset($this->context->cookie, $this->context->cookie->id_customer) && $this->context->cookie->id_customer && !empty($rule->code)) {
-                            Tools::redirect(
-                                'index.php?controller=order&submitAddDiscount=1&discount_name=' . urlencode($rule->code)
-                            );
+                        if (isset($this->context->cookie) && isset($this->context->cookie->id_customer) && $this->context->cookie->id_customer && !empty($rule->code)) {
+                            Tools::redirect('index.php?controller=order&submitAddDiscount=1&discount_name=' . urlencode($rule->code));
                         } else {
                             $rule_name = isset($rule->name[(int)$this->context->cart->id_lang]) ? $rule->name[(int)$this->context->cart->id_lang] : $rule->code;
-                            $error = $this->trans(
-                                'The cart rule named "%1s" (ID %2s) used in this cart is not valid and has been withdrawn from cart',
-                                array($rule_name, (int)$rule->id), 'Admin.Payment.Notification'
-                            );
+                            $error = $this->trans('The cart rule named "%1s" (ID %2s) used in this cart is not valid and has been withdrawn from cart', array($rule_name, (int)$rule->id), 'Admin.Payment.Notification');
                             PrestaShopLogger::addLog($error, 3, '0000002', 'Cart', (int)$this->context->cart->id);
                         }
                     }
                 }
             }
 
-            // Amount paid by customer is not the right one -> Status = payment error
-            // We don't use the following condition to avoid the float precision issues : http://www.php.net/manual/en/language.types.float.php
-            // if ($order->total_paid != $order->total_paid_real)
-            // We use number_format in order to compare two string
-            if ($order_status->logable && number_format(
-                    $cart_total_paid, _PS_PRICE_COMPUTE_PRECISION_
-                ) != number_format($amount_paid, _PS_PRICE_COMPUTE_PRECISION_)) {
-                $id_order_state = Configuration::get('PS_OS_ERROR');
-            }
-
             foreach ($package_list as $id_address => $packageByAddress) {
                 foreach ($packageByAddress as $id_package => $package) {
-                    $orderData = $this->createOrderFromCart(
-                        $this->context->cart,
-                        $this->context->currency,
-                        $package['product_list'],
-                        $id_address,
-                        $this->context,
-                        $reference,
-                        $secure_key,
-                        $payment_method,
-                        $this->name,
-                        $dont_touch_amount,
-                        $amount_paid,
-                        $package_list[$id_address][$id_package]['id_warehouse'],
-                        $cart_total_paid,
-                        self::DEBUG_MODE,
-                        $order_status,
-                        $id_order_state,
-                        isset($package['id_carrier']) ? $package['id_carrier'] : null
-                    );
-                    $order = $orderData['order'];
+                    /** @var Order $order */
+                    $order = new Order();
+                    $order->product_list = $package['product_list'];
+
+                    if (Configuration::get('PS_TAX_ADDRESS_TYPE') == 'id_address_delivery') {
+                        $address = new Address((int)$id_address);
+                        $this->context->country = new Country((int)$address->id_country, (int)$this->context->cart->id_lang);
+                        if (!$this->context->country->active) {
+                            throw new PrestaShopException('The delivery address country is not active.');
+                        }
+                    }
+
+                    $carrier = null;
+                    if (!$this->context->cart->isVirtualCart() && isset($package['id_carrier'])) {
+                        $carrier = new Carrier((int)$package['id_carrier'], (int)$this->context->cart->id_lang);
+                        $order->id_carrier = (int)$carrier->id;
+                        $id_carrier = (int)$carrier->id;
+                    } else {
+                        $order->id_carrier = 0;
+                        $id_carrier = 0;
+                    }
+
+                    $order->id_customer = (int)$this->context->cart->id_customer;
+                    $order->id_address_invoice = (int)$this->context->cart->id_address_invoice;
+                    $order->id_address_delivery = (int)$id_address;
+                    $order->id_currency = $this->context->currency->id;
+                    $order->id_lang = (int)$this->context->cart->id_lang;
+                    $order->id_cart = (int)$this->context->cart->id;
+                    $order->reference = $reference;
+                    $order->id_shop = (int)$this->context->shop->id;
+                    $order->id_shop_group = (int)$this->context->shop->id_shop_group;
+
+                    $order->secure_key = ($secure_key ? pSQL($secure_key) : pSQL($this->context->customer->secure_key));
+                    $order->payment = $payment_method;
+                    if (isset($this->name)) {
+                        $order->module = $this->name;
+                    }
+                    $order->recyclable = $this->context->cart->recyclable;
+                    $order->gift = (int)$this->context->cart->gift;
+                    $order->gift_message = $this->context->cart->gift_message;
+                    $order->mobile_theme = $this->context->cart->mobile_theme;
+                    $order->conversion_rate = $this->context->currency->conversion_rate;
+                    $amount_paid = !$dont_touch_amount ? Tools::ps_round((float)$amount_paid, 2) : $amount_paid;
+                    $order->total_paid_real = 0;
+
+                    $order->total_products = (float)$this->context->cart->getOrderTotal(false, Cart::ONLY_PRODUCTS, $order->product_list, $id_carrier);
+                    $order->total_products_wt = (float)$this->context->cart->getOrderTotal(true, Cart::ONLY_PRODUCTS, $order->product_list, $id_carrier);
+                    $order->total_discounts_tax_excl = (float)abs($this->context->cart->getOrderTotal(false, Cart::ONLY_DISCOUNTS, $order->product_list, $id_carrier));
+                    $order->total_discounts_tax_incl = (float)abs($this->context->cart->getOrderTotal(true, Cart::ONLY_DISCOUNTS, $order->product_list, $id_carrier));
+                    $order->total_discounts = $order->total_discounts_tax_incl;
+
+                    $order->total_shipping_tax_excl = (float)$this->context->cart->getPackageShippingCost((int)$id_carrier, false, null, $order->product_list);
+                    $order->total_shipping_tax_incl = (float)$this->context->cart->getPackageShippingCost((int)$id_carrier, true, null, $order->product_list);
+                    $order->total_shipping = $order->total_shipping_tax_incl;
+
+                    if (!is_null($carrier) && Validate::isLoadedObject($carrier)) {
+                        $order->carrier_tax_rate = $carrier->getTaxesRate(new Address((int)$this->context->cart->{Configuration::get('PS_TAX_ADDRESS_TYPE')}));
+                    }
+
+                    $order->total_wrapping_tax_excl = (float)abs($this->context->cart->getOrderTotal(false, Cart::ONLY_WRAPPING, $order->product_list, $id_carrier));
+                    $order->total_wrapping_tax_incl = (float)abs($this->context->cart->getOrderTotal(true, Cart::ONLY_WRAPPING, $order->product_list, $id_carrier));
+                    $order->total_wrapping = $order->total_wrapping_tax_incl;
+
+                    $order->total_paid_tax_excl = (float)Tools::ps_round((float)$this->context->cart->getOrderTotal(false, Cart::BOTH, $order->product_list, $id_carrier), _PS_PRICE_COMPUTE_PRECISION_);
+                    $order->total_paid_tax_incl = (float)Tools::ps_round((float)$this->context->cart->getOrderTotal(true, Cart::BOTH, $order->product_list, $id_carrier), _PS_PRICE_COMPUTE_PRECISION_);
+                    $order->total_paid = $order->total_paid_tax_incl;
+                    $order->round_mode = Configuration::get('PS_PRICE_ROUND_MODE');
+                    $order->round_type = Configuration::get('PS_ROUND_TYPE');
+
+                    $order->invoice_date = '0000-00-00 00:00:00';
+                    $order->delivery_date = '0000-00-00 00:00:00';
+
+                    if (self::DEBUG_MODE) {
+                        PrestaShopLogger::addLog('PaymentModule::validateOrder - Order is about to be added', 1, null, 'Cart', (int)$id_cart, true);
+                    }
+
+                    // Creating order
+                    $result = $order->add();
+
+                    if (!$result) {
+                        PrestaShopLogger::addLog('PaymentModule::validateOrder - Order cannot be created', 3, null, 'Cart', (int)$id_cart, true);
+                        throw new PrestaShopException('Can\'t save Order');
+                    }
+
+                    // Amount paid by customer is not the right one -> Status = payment error
+                    // We don't use the following condition to avoid the float precision issues : http://www.php.net/manual/en/language.types.float.php
+                    // if ($order->total_paid != $order->total_paid_real)
+                    // We use number_format in order to compare two string
+                    if ($order_status->logable && number_format($cart_total_paid, _PS_PRICE_COMPUTE_PRECISION_) != number_format($amount_paid, _PS_PRICE_COMPUTE_PRECISION_)) {
+                        $id_order_state = Configuration::get('PS_OS_ERROR');
+                    }
+
                     $order_list[] = $order;
-                    $order_detail_list[] = $orderData['orderDetail'];
+
+                    if (self::DEBUG_MODE) {
+                        PrestaShopLogger::addLog('PaymentModule::validateOrder - OrderDetail is about to be added', 1, null, 'Cart', (int)$id_cart, true);
+                    }
+
+                    // Insert new Order detail list using cart for the current order
+                    $order_detail = new OrderDetail(null, null, $this->context);
+                    $order_detail->createList($order, $this->context->cart, $id_order_state, $order->product_list, 0, true, $package_list[$id_address][$id_package]['id_warehouse']);
+                    $order_detail_list[] = $order_detail;
+
+                    if (self::DEBUG_MODE) {
+                        PrestaShopLogger::addLog('PaymentModule::validateOrder - OrderCarrier is about to be added', 1, null, 'Cart', (int)$id_cart, true);
+                    }
+
+                    // Adding an entry in order_carrier table
+                    if (!is_null($carrier)) {
+                        $order_carrier = new OrderCarrier();
+                        $order_carrier->id_order = (int)$order->id;
+                        $order_carrier->id_carrier = (int)$id_carrier;
+                        $order_carrier->weight = (float)$order->getTotalWeight();
+                        $order_carrier->shipping_cost_tax_excl = (float)$order->total_shipping_tax_excl;
+                        $order_carrier->shipping_cost_tax_incl = (float)$order->total_shipping_tax_incl;
+                        $order_carrier->add();
+                    }
                 }
             }
 
@@ -464,17 +521,12 @@ class KhipuPayment extends PaymentModule
             }
 
             if (!$this->context->country->active) {
-                PrestaShopLogger::addLog(
-                    'PaymentModule::validateOrder - Country is not active', 3, null, 'Cart', (int)$id_cart, true
-                );
-
+                PrestaShopLogger::addLog('PaymentModule::validateOrder - Country is not active', 3, null, 'Cart', (int)$id_cart, true);
                 throw new PrestaShopException('The order address country is not active.');
             }
 
             if (self::DEBUG_MODE) {
-                PrestaShopLogger::addLog(
-                    'PaymentModule::validateOrder - Payment is about to be added', 1, null, 'Cart', (int)$id_cart, true
-                );
+                PrestaShopLogger::addLog('PaymentModule::validateOrder - Payment is about to be added', 1, null, 'Cart', (int)$id_cart, true);
             }
 
             // Register Payment only if the order status validate the order
@@ -489,29 +541,25 @@ class KhipuPayment extends PaymentModule
                 }
 
                 if (!$order->addOrderPayment($amount_paid, null, $transaction_id)) {
-                    PrestaShopLogger::addLog(
-                        'PaymentModule::validateOrder - Cannot save Order Payment', 3, null, 'Cart', (int)$id_cart, true
-                    );
-
+                    PrestaShopLogger::addLog('PaymentModule::validateOrder - Cannot save Order Payment', 3, null, 'Cart', (int)$id_cart, true);
                     throw new PrestaShopException('Can\'t save Order Payment');
                 }
             }
 
             // Next !
             $only_one_gift = false;
+            $cart_rule_used = array();
             $products = $this->context->cart->getProducts();
 
             // Make sure CartRule caches are empty
             CartRule::cleanCache();
             foreach ($order_detail_list as $key => $order_detail) {
                 /** @var OrderDetail $order_detail */
+
                 $order = $order_list[$key];
                 if (isset($order->id)) {
                     if (!$secure_key) {
-                        $message .= '<br />' . $this->trans(
-                                'Warning: the secure key is empty, check your payment account before validation',
-                                array(), 'Admin.Payment.Notification'
-                            );
+                        $message .= '<br />' . $this->trans('Warning: the secure key is empty, check your payment account before validation', array(), 'Admin.Payment.Notification');
                     }
                     // Optional message to attach to this order
                     if (isset($message) & !empty($message)) {
@@ -519,10 +567,7 @@ class KhipuPayment extends PaymentModule
                         $message = strip_tags($message, '<br>');
                         if (Validate::isCleanHtml($message)) {
                             if (self::DEBUG_MODE) {
-                                PrestaShopLogger::addLog(
-                                    'PaymentModule::validateOrder - Message is about to be added', 1, null, 'Cart',
-                                    (int)$id_cart, true
-                                );
+                                PrestaShopLogger::addLog('PaymentModule::validateOrder - Message is about to be added', 1, null, 'Cart', (int)$id_cart, true);
                             }
                             $msg->message = $message;
                             $msg->id_cart = (int)$id_cart;
@@ -543,51 +588,29 @@ class KhipuPayment extends PaymentModule
 
                     $product_var_tpl_list = array();
                     foreach ($order->product_list as $product) {
-                        $price = Product::getPriceStatic(
-                            (int)$product['id_product'], false,
-                            ($product['id_product_attribute'] ? (int)$product['id_product_attribute'] : null), 6, null,
-                            false, true, $product['cart_quantity'], false, (int)$order->id_customer,
-                            (int)$order->id_cart, (int)$order->{Configuration::get('PS_TAX_ADDRESS_TYPE')},
-                            $specific_price, true, true, null, true, $product['id_customization']
-                        );
-                        $price_wt = Product::getPriceStatic(
-                            (int)$product['id_product'], true,
-                            ($product['id_product_attribute'] ? (int)$product['id_product_attribute'] : null), 2, null,
-                            false, true, $product['cart_quantity'], false, (int)$order->id_customer,
-                            (int)$order->id_cart, (int)$order->{Configuration::get('PS_TAX_ADDRESS_TYPE')},
-                            $specific_price, true, true, null, true, $product['id_customization']
-                        );
+                        $price = Product::getPriceStatic((int)$product['id_product'], false, ($product['id_product_attribute'] ? (int)$product['id_product_attribute'] : null), 6, null, false, true, $product['cart_quantity'], false, (int)$order->id_customer, (int)$order->id_cart, (int)$order->{Configuration::get('PS_TAX_ADDRESS_TYPE')}, $specific_price, true, true, null, true, $product['id_customization']);
+                        $price_wt = Product::getPriceStatic((int)$product['id_product'], true, ($product['id_product_attribute'] ? (int)$product['id_product_attribute'] : null), 2, null, false, true, $product['cart_quantity'], false, (int)$order->id_customer, (int)$order->id_cart, (int)$order->{Configuration::get('PS_TAX_ADDRESS_TYPE')}, $specific_price, true, true, null, true, $product['id_customization']);
 
-                        $product_price = Product::getTaxCalculationMethod() == PS_TAX_EXC ? Tools::ps_round(
-                            $price, 2
-                        ) : $price_wt;
+                        $product_price = Product::getTaxCalculationMethod() == PS_TAX_EXC ? Tools::ps_round($price, 2) : $price_wt;
 
                         $product_var_tpl = array(
                             'id_product' => $product['id_product'],
                             'reference' => $product['reference'],
                             'name' => $product['name'] . (isset($product['attributes']) ? ' - ' . $product['attributes'] : ''),
-                            'price' => Tools::displayPrice(
-                                $product_price * $product['quantity'], $this->context->currency, false
-                            ),
+                            'price' => Tools::displayPrice($product_price * $product['quantity'], $this->context->currency, false),
                             'quantity' => $product['quantity'],
-                            'customization' => array(),
+                            'customization' => array()
                         );
 
                         if (isset($product['price']) && $product['price']) {
-                            $product_var_tpl['unit_price'] = Tools::displayPrice(
-                                $product_price, $this->context->currency, false
-                            );
-                            $product_var_tpl['unit_price_full'] = Tools::displayPrice(
-                                    $product_price, $this->context->currency, false
-                                )
+                            $product_var_tpl['unit_price'] = Tools::displayPrice($product['price'], $this->context->currency, false);
+                            $product_var_tpl['unit_price_full'] = Tools::displayPrice($product['price'], $this->context->currency, false)
                                 . ' ' . $product['unity'];
                         } else {
                             $product_var_tpl['unit_price'] = $product_var_tpl['unit_price_full'] = '';
                         }
 
-                        $customized_datas = Product::getAllCustomizedDatas(
-                            (int)$order->id_cart, null, true, null, (int)$product['id_customization']
-                        );
+                        $customized_datas = Product::getAllCustomizedDatas((int)$order->id_cart, null, true, null, (int)$product['id_customization']);
                         if (isset($customized_datas[$product['id_product']][$product['id_product_attribute']])) {
                             $product_var_tpl['customization'] = array();
                             foreach ($customized_datas[$product['id_product']][$product['id_product_attribute']][$order->id_address_delivery] as $customization) {
@@ -599,11 +622,7 @@ class KhipuPayment extends PaymentModule
                                 }
 
                                 if (isset($customization['datas'][Product::CUSTOMIZE_FILE])) {
-                                    $customization_text .= $this->trans(
-                                            '%d image(s)',
-                                            array(count($customization['datas'][Product::CUSTOMIZE_FILE])),
-                                            'Admin.Payment.Notification'
-                                        ) . '<br />';
+                                    $customization_text .= $this->trans('%d image(s)', array(count($customization['datas'][Product::CUSTOMIZE_FILE])), 'Admin.Payment.Notification') . '<br />';
                                 }
 
                                 $customization_quantity = (int)$customization['quantity'];
@@ -611,9 +630,7 @@ class KhipuPayment extends PaymentModule
                                 $product_var_tpl['customization'][] = array(
                                     'customization_text' => $customization_text,
                                     'customization_quantity' => $customization_quantity,
-                                    'quantity' => Tools::displayPrice(
-                                        $customization_quantity * $product_price, $this->context->currency, false
-                                    ),
+                                    'quantity' => Tools::displayPrice($customization_quantity * $product_price, $this->context->currency, false)
                                 );
                             }
                         }
@@ -628,35 +645,130 @@ class KhipuPayment extends PaymentModule
                     $product_list_txt = '';
                     $product_list_html = '';
                     if (count($product_var_tpl_list) > 0) {
-                        $product_list_txt = $this->getEmailTemplateContent(
-                            'order_conf_product_list.txt', Mail::TYPE_TEXT, $product_var_tpl_list
-                        );
-                        $product_list_html = $this->getEmailTemplateContent(
-                            'order_conf_product_list.tpl', Mail::TYPE_HTML, $product_var_tpl_list
-                        );
+                        $product_list_txt = $this->getEmailTemplateContent('order_conf_product_list.txt', Mail::TYPE_TEXT, $product_var_tpl_list);
+                        $product_list_html = $this->getEmailTemplateContent('order_conf_product_list.tpl', Mail::TYPE_HTML, $product_var_tpl_list);
                     }
 
+                    $cart_rules_list = array();
                     $total_reduction_value_ti = 0;
                     $total_reduction_value_tex = 0;
+                    foreach ($cart_rules as $cart_rule) {
+                        $package = array('id_carrier' => $order->id_carrier, 'id_address' => $order->id_address_delivery, 'products' => $order->product_list);
+                        $values = array(
+                            'tax_incl' => $cart_rule['obj']->getContextualValue(true, $this->context, CartRule::FILTER_ACTION_ALL_NOCAP, $package),
+                            'tax_excl' => $cart_rule['obj']->getContextualValue(false, $this->context, CartRule::FILTER_ACTION_ALL_NOCAP, $package)
+                        );
 
-                    $cart_rules_list = $this->createOrderCartRules(
-                        $order,
-                        $this->context->cart,
-                        $order_list,
-                        $total_reduction_value_ti,
-                        $total_reduction_value_tex,
-                        $id_order_state
-                    );
+                        // If the reduction is not applicable to this order, then continue with the next one
+                        if (!$values['tax_excl']) {
+                            continue;
+                        }
+
+                        // IF
+                        //  This is not multi-shipping
+                        //  The value of the voucher is greater than the total of the order
+                        //  Partial use is allowed
+                        //  This is an "amount" reduction, not a reduction in % or a gift
+                        // THEN
+                        //  The voucher is cloned with a new value corresponding to the remainder
+                        if (count($order_list) == 1 && $values['tax_incl'] > ($order->total_products_wt - $total_reduction_value_ti) && $cart_rule['obj']->partial_use == 1 && $cart_rule['obj']->reduction_amount > 0) {
+                            // Create a new voucher from the original
+                            $voucher = new CartRule((int)$cart_rule['obj']->id); // We need to instantiate the CartRule without lang parameter to allow saving it
+                            unset($voucher->id);
+
+                            // Set a new voucher code
+                            $voucher->code = empty($voucher->code) ? substr(md5($order->id . '-' . $order->id_customer . '-' . $cart_rule['obj']->id), 0, 16) : $voucher->code . '-2';
+                            if (preg_match('/\-([0-9]{1,2})\-([0-9]{1,2})$/', $voucher->code, $matches) && $matches[1] == $matches[2]) {
+                                $voucher->code = preg_replace('/' . $matches[0] . '$/', '-' . (intval($matches[1]) + 1), $voucher->code);
+                            }
+
+                            // Set the new voucher value
+                            if ($voucher->reduction_tax) {
+                                $voucher->reduction_amount = ($total_reduction_value_ti + $values['tax_incl']) - $order->total_products_wt;
+
+                                // Add total shipping amout only if reduction amount > total shipping
+                                if ($voucher->free_shipping == 1 && $voucher->reduction_amount >= $order->total_shipping_tax_incl) {
+                                    $voucher->reduction_amount -= $order->total_shipping_tax_incl;
+                                }
+                            } else {
+                                $voucher->reduction_amount = ($total_reduction_value_tex + $values['tax_excl']) - $order->total_products;
+
+                                // Add total shipping amout only if reduction amount > total shipping
+                                if ($voucher->free_shipping == 1 && $voucher->reduction_amount >= $order->total_shipping_tax_excl) {
+                                    $voucher->reduction_amount -= $order->total_shipping_tax_excl;
+                                }
+                            }
+                            if ($voucher->reduction_amount <= 0) {
+                                continue;
+                            }
+
+                            if ($this->context->customer->isGuest()) {
+                                $voucher->id_customer = 0;
+                            } else {
+                                $voucher->id_customer = $order->id_customer;
+                            }
+
+                            $voucher->quantity = 1;
+                            $voucher->reduction_currency = $order->id_currency;
+                            $voucher->quantity_per_user = 1;
+                            $voucher->free_shipping = 0;
+                            if ($voucher->add()) {
+                                // If the voucher has conditions, they are now copied to the new voucher
+                                CartRule::copyConditions($cart_rule['obj']->id, $voucher->id);
+                                $orderLanguage = new Language((int)$order->id_lang);
+
+                                $params = array(
+                                    '{voucher_amount}' => Tools::displayPrice($voucher->reduction_amount, $this->context->currency, false),
+                                    '{voucher_num}' => $voucher->code,
+                                    '{firstname}' => $this->context->customer->firstname,
+                                    '{lastname}' => $this->context->customer->lastname,
+                                    '{id_order}' => $order->reference,
+                                    '{order_name}' => $order->getUniqReference()
+                                );
+                                Mail::Send(
+                                    (int)$order->id_lang,
+                                    'voucher',
+                                    Context::getContext()->getTranslator()->trans(
+                                        'New voucher for your order %s',
+                                        array($order->reference),
+                                        'Emails.Subject',
+                                        $orderLanguage->locale
+                                    ),
+                                    $params,
+                                    $this->context->customer->email,
+                                    $this->context->customer->firstname . ' ' . $this->context->customer->lastname,
+                                    null, null, null, null, _PS_MAIL_DIR_, false, (int)$order->id_shop
+                                );
+                            }
+
+                            $values['tax_incl'] = $order->total_products_wt - $total_reduction_value_ti;
+                            $values['tax_excl'] = $order->total_products - $total_reduction_value_tex;
+                        }
+                        $total_reduction_value_ti += $values['tax_incl'];
+                        $total_reduction_value_tex += $values['tax_excl'];
+
+                        $order->addCartRule($cart_rule['obj']->id, $cart_rule['obj']->name, $values, 0, $cart_rule['obj']->free_shipping);
+
+                        if ($id_order_state != Configuration::get('PS_OS_ERROR') && $id_order_state != Configuration::get('PS_OS_CANCELED') && !in_array($cart_rule['obj']->id, $cart_rule_used)) {
+                            $cart_rule_used[] = $cart_rule['obj']->id;
+
+                            // Create a new instance of Cart Rule without id_lang, in order to update its quantity
+                            $cart_rule_to_update = new CartRule((int)$cart_rule['obj']->id);
+                            $cart_rule_to_update->quantity = max(0, $cart_rule_to_update->quantity - 1);
+                            $cart_rule_to_update->update();
+                        }
+
+                        $cart_rules_list[] = array(
+                            'voucher_name' => $cart_rule['obj']->name,
+                            'voucher_reduction' => ($values['tax_incl'] != 0.00 ? '-' : '') . Tools::displayPrice($values['tax_incl'], $this->context->currency, false)
+                        );
+                    }
 
                     $cart_rules_list_txt = '';
                     $cart_rules_list_html = '';
                     if (count($cart_rules_list) > 0) {
-                        $cart_rules_list_txt = $this->getEmailTemplateContent(
-                            'order_conf_cart_rules.txt', Mail::TYPE_TEXT, $cart_rules_list
-                        );
-                        $cart_rules_list_html = $this->getEmailTemplateContent(
-                            'order_conf_cart_rules.tpl', Mail::TYPE_HTML, $cart_rules_list
-                        );
+                        $cart_rules_list_txt = $this->getEmailTemplateContent('order_conf_cart_rules.txt', Mail::TYPE_TEXT, $cart_rules_list);
+                        $cart_rules_list_html = $this->getEmailTemplateContent('order_conf_cart_rules.tpl', Mail::TYPE_HTML, $cart_rules_list);
                     }
 
                     // Specify order id for message
@@ -685,29 +797,22 @@ class KhipuPayment extends PaymentModule
                         $customer_message->private = 1;
 
                         if (!$customer_message->add()) {
-                            $this->errors[] = $this->trans(
-                                'An error occurred while saving message', array(), 'Admin.Payment.Notification'
-                            );
+                            $this->errors[] = $this->trans('An error occurred while saving message', array(), 'Admin.Payment.Notification');
                         }
                     }
 
                     if (self::DEBUG_MODE) {
-                        PrestaShopLogger::addLog(
-                            'PaymentModule::validateOrder - Hook validateOrder is about to be called', 1, null, 'Cart',
-                            (int)$id_cart, true
-                        );
+                        PrestaShopLogger::addLog('PaymentModule::validateOrder - Hook validateOrder is about to be called', 1, null, 'Cart', (int)$id_cart, true);
                     }
 
                     // Hook validate order
-                    Hook::exec(
-                        'actionValidateOrder', array(
+                    Hook::exec('actionValidateOrder', array(
                         'cart' => $this->context->cart,
                         'order' => $order,
                         'customer' => $this->context->customer,
                         'currency' => $this->context->currency,
-                        'orderStatus' => $order_status,
-                    )
-                    );
+                        'orderStatus' => $order_status
+                    ));
 
                     foreach ($this->context->cart->getProducts() as $product) {
                         if ($order_status->logable) {
@@ -716,10 +821,7 @@ class KhipuPayment extends PaymentModule
                     }
 
                     if (self::DEBUG_MODE) {
-                        PrestaShopLogger::addLog(
-                            'PaymentModule::validateOrder - Order Status is about to be added', 1, null, 'Cart',
-                            (int)$id_cart, true
-                        );
+                        PrestaShopLogger::addLog('PaymentModule::validateOrder - Order Status is about to be added', 1, null, 'Cart', (int)$id_cart, true);
                     }
 
                     // Set the order status
@@ -729,16 +831,10 @@ class KhipuPayment extends PaymentModule
                     $new_history->addWithemail(true, $extra_vars);
 
                     // Switch to back order if needed
-                    if (Configuration::get('PS_STOCK_MANAGEMENT') &&
-                        ($order_detail->getStockState() ||
-                            $order_detail->product_quantity_in_stock < 0)) {
+                    if (Configuration::get('PS_STOCK_MANAGEMENT') && ($order_detail->getStockState() || $order_detail->product_quantity_in_stock <= 0)) {
                         $history = new OrderHistory();
                         $history->id_order = (int)$order->id;
-                        $history->changeIdOrderState(
-                            Configuration::get(
-                                $order->hasBeenPaid() ? 'PS_OS_OUTOFSTOCK_PAID' : 'PS_OS_OUTOFSTOCK_UNPAID'
-                            ), $order, true
-                        );
+                        $history->changeIdOrderState(Configuration::get($order->valid ? 'PS_OS_OUTOFSTOCK_PAID' : 'PS_OS_OUTOFSTOCK_UNPAID'), $order, true);
                         $history->addWithemail();
                     }
 
@@ -748,37 +844,26 @@ class KhipuPayment extends PaymentModule
                     $order = new Order((int)$order->id);
 
                     // Send an e-mail to customer (one order = one email)
-                    if ($id_order_state != Configuration::get('PS_OS_ERROR') && $id_order_state != Configuration::get(
-                            'PS_OS_CANCELED'
-                        ) && $this->context->customer->id) {
+                    if ($id_order_state != Configuration::get('PS_OS_ERROR') && $id_order_state != Configuration::get('PS_OS_CANCELED') && $this->context->customer->id) {
                         $invoice = new Address((int)$order->id_address_invoice);
                         $delivery = new Address((int)$order->id_address_delivery);
                         $delivery_state = $delivery->id_state ? new State((int)$delivery->id_state) : false;
                         $invoice_state = $invoice->id_state ? new State((int)$invoice->id_state) : false;
-                        $carrier = $order->id_carrier ? new Carrier($order->id_carrier) : false;
 
                         $data = array(
                             '{firstname}' => $this->context->customer->firstname,
                             '{lastname}' => $this->context->customer->lastname,
                             '{email}' => $this->context->customer->email,
-                            '{delivery_block_txt}' => $this->_getFormatedAddress(
-                                $delivery, AddressFormat::FORMAT_NEW_LINE
-                            ),
-                            '{invoice_block_txt}' => $this->_getFormatedAddress(
-                                $invoice, AddressFormat::FORMAT_NEW_LINE
-                            ),
-                            '{delivery_block_html}' => $this->_getFormatedAddress(
-                                $delivery, '<br />', array(
+                            '{delivery_block_txt}' => $this->_getFormatedAddress($delivery, "\n"),
+                            '{invoice_block_txt}' => $this->_getFormatedAddress($invoice, "\n"),
+                            '{delivery_block_html}' => $this->_getFormatedAddress($delivery, '<br />', array(
                                 'firstname' => '<span style="font-weight:bold;">%s</span>',
-                                'lastname' => '<span style="font-weight:bold;">%s</span>',
-                            )
-                            ),
-                            '{invoice_block_html}' => $this->_getFormatedAddress(
-                                $invoice, '<br />', array(
+                                'lastname' => '<span style="font-weight:bold;">%s</span>'
+                            )),
+                            '{invoice_block_html}' => $this->_getFormatedAddress($invoice, '<br />', array(
                                 'firstname' => '<span style="font-weight:bold;">%s</span>',
-                                'lastname' => '<span style="font-weight:bold;">%s</span>',
-                            )
-                            ),
+                                'lastname' => '<span style="font-weight:bold;">%s</span>'
+                            )),
                             '{delivery_company}' => $delivery->company,
                             '{delivery_firstname}' => $delivery->firstname,
                             '{delivery_lastname}' => $delivery->lastname,
@@ -804,40 +889,18 @@ class KhipuPayment extends PaymentModule
                             '{invoice_other}' => $invoice->other,
                             '{order_name}' => $order->getUniqReference(),
                             '{date}' => Tools::displayDate(date('Y-m-d H:i:s'), null, 1),
-                            '{carrier}' => ($virtual_product || !isset($carrier->name)) ? $this->trans(
-                                'No carrier', array(), 'Admin.Payment.Notification'
-                            ) : $carrier->name,
+                            '{carrier}' => ($virtual_product || !isset($carrier->name)) ? $this->trans('No carrier', array(), 'Admin.Payment.Notification') : $carrier->name,
                             '{payment}' => Tools::substr($order->payment, 0, 255),
                             '{products}' => $product_list_html,
                             '{products_txt}' => $product_list_txt,
                             '{discounts}' => $cart_rules_list_html,
                             '{discounts_txt}' => $cart_rules_list_txt,
                             '{total_paid}' => Tools::displayPrice($order->total_paid, $this->context->currency, false),
-                            '{total_products}' => Tools::displayPrice(
-                                Product::getTaxCalculationMethod(
-                                ) == PS_TAX_EXC ? $order->total_products : $order->total_products_wt,
-                                $this->context->currency, false
-                            ),
-                            '{total_discounts}' => Tools::displayPrice(
-                                $order->total_discounts, $this->context->currency, false
-                            ),
-                            '{total_shipping}' => Tools::displayPrice(
-                                $order->total_shipping, $this->context->currency, false
-                            ),
-                            '{total_shipping_tax_excl}' => Tools::displayPrice(
-                                $order->total_shipping_tax_excl, $this->context->currency, false
-                            ),
-                            '{total_shipping_tax_incl}' => Tools::displayPrice(
-                                $order->total_shipping_tax_incl, $this->context->currency, false
-                            ),
-                            '{total_wrapping}' => Tools::displayPrice(
-                                $order->total_wrapping, $this->context->currency, false
-                            ),
-                            '{total_tax_paid}' => Tools::displayPrice(
-                                ($order->total_products_wt - $order->total_products) + ($order->total_shipping_tax_incl - $order->total_shipping_tax_excl),
-                                $this->context->currency, false
-                            ),
-                        );
+                            '{total_products}' => Tools::displayPrice(Product::getTaxCalculationMethod() == PS_TAX_EXC ? $order->total_products : $order->total_products_wt, $this->context->currency, false),
+                            '{total_discounts}' => Tools::displayPrice($order->total_discounts, $this->context->currency, false),
+                            '{total_shipping}' => Tools::displayPrice($order->total_shipping, $this->context->currency, false),
+                            '{total_wrapping}' => Tools::displayPrice($order->total_wrapping, $this->context->currency, false),
+                            '{total_tax_paid}' => Tools::displayPrice(($order->total_products_wt - $order->total_products) + ($order->total_shipping_tax_incl - $order->total_shipping_tax_excl), $this->context->currency, false));
 
                         if (is_array($extra_vars)) {
                             $data = array_merge($data, $extra_vars);
@@ -849,19 +912,14 @@ class KhipuPayment extends PaymentModule
                             Hook::exec('actionPDFInvoiceRender', array('order_invoice_list' => $order_invoice_list));
                             $pdf = new PDF($order_invoice_list, PDF::TEMPLATE_INVOICE, $this->context->smarty);
                             $file_attachement['content'] = $pdf->render(false);
-                            $file_attachement['name'] = Configuration::get(
-                                    'PS_INVOICE_PREFIX', (int)$order->id_lang, null, $order->id_shop
-                                ) . sprintf('%06d', $order->invoice_number) . '.pdf';
+                            $file_attachement['name'] = Configuration::get('PS_INVOICE_PREFIX', (int)$order->id_lang, null, $order->id_shop) . sprintf('%06d', $order->invoice_number) . '.pdf';
                             $file_attachement['mime'] = 'application/pdf';
                         } else {
                             $file_attachement = null;
                         }
 
                         if (self::DEBUG_MODE) {
-                            PrestaShopLogger::addLog(
-                                'PaymentModule::validateOrder - Mail is about to be sent', 1, null, 'Cart',
-                                (int)$id_cart, true
-                            );
+                            PrestaShopLogger::addLog('PaymentModule::validateOrder - Mail is about to be sent', 1, null, 'Cart', (int)$id_cart, true);
                         }
 
                         $orderLanguage = new Language((int)$order->id_lang);
@@ -882,10 +940,7 @@ class KhipuPayment extends PaymentModule
                                 null,
                                 null,
                                 $file_attachement,
-                                null,
-                                _PS_MAIL_DIR_,
-                                false,
-                                (int)$order->id_shop
+                                null, _PS_MAIL_DIR_, false, (int)$order->id_shop
                             );
                         }
                     }
@@ -914,8 +969,8 @@ class KhipuPayment extends PaymentModule
                     );
                 } else {
                     $error = $this->trans('Order creation failed', array(), 'Admin.Payment.Notification');
-                    PrestaShopLogger::addLog($error, 4, '0000002', 'Cart', (int)($order->id_cart));
-                    die(Tools::displayError($error));
+                    PrestaShopLogger::addLog($error, 4, '0000002', 'Cart', intval($order->id_cart));
+                    die($error);
                 }
             } // End foreach $order_detail_list
 
@@ -925,19 +980,14 @@ class KhipuPayment extends PaymentModule
             }
 
             if (self::DEBUG_MODE) {
-                PrestaShopLogger::addLog(
-                    'PaymentModule::validateOrder - End of validateOrder', 1, null, 'Cart', (int)$id_cart, true
-                );
+                PrestaShopLogger::addLog('PaymentModule::validateOrder - End of validateOrder', 1, null, 'Cart', (int)$id_cart, true);
             }
 
             return true;
         } else {
-            $error = $this->trans(
-                'Cart cannot be loaded or an order has already been placed using this cart', array(),
-                'Admin.Payment.Notification'
-            );
-            PrestaShopLogger::addLog($error, 4, '0000001', 'Cart', (int)($this->context->cart->id));
-            die(Tools::displayError($error));
+            $error = $this->trans('Cart cannot be loaded or an order has already been placed using this cart', array(), 'Admin.Payment.Notification');
+            PrestaShopLogger::addLog($error, 4, '0000001', 'Cart', intval($this->context->cart->id));
+            die($error);
         }
     }
 
@@ -945,9 +995,9 @@ class KhipuPayment extends PaymentModule
     public function setCurrentOrderState($order, $id_order_state)
     {
         $history = new OrderHistory();
-        $history->id_order = (int) $order->id;
-        $history->changeIdOrderState((int) $id_order_state, $order);
-        $res = Db::getInstance()->getRow('SELECT `invoice_number`, `invoice_date`, `delivery_number`, `delivery_date` FROM `' . _DB_PREFIX_ . 'orders` WHERE `id_order` = ' . (int) $order->id);
+        $history->id_order = (int)$order->id;
+        $history->changeIdOrderState((int)$id_order_state, $order);
+        $res = Db::getInstance()->getRow('SELECT `invoice_number`, `invoice_date`, `delivery_number`, `delivery_date` FROM `' . _DB_PREFIX_ . 'orders` WHERE `id_order` = ' . (int)$order->id);
         $order->invoice_date = $res['invoice_date'];
         $order->invoice_number = $res['invoice_number'];
         $order->delivery_date = $res['delivery_date'];

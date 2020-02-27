@@ -18,7 +18,7 @@
 class KhipuPostback
 {
 
-    const PLUGIN_VERSION = '4.0.5';
+    const PLUGIN_VERSION = '4.0.6';
 
     public function init()
     {
@@ -77,7 +77,9 @@ class KhipuPostback
 
         $order = $orders[0];
 
+
         $cart = Cart::getCartByOrderId($order->id);
+
 
         $currency = Currency::getCurrencyInstance($cart->id_currency);
 
@@ -90,7 +92,7 @@ class KhipuPostback
 
         if (Configuration::get('KHIPU_MERCHANTID') == $paymentResponse->getReceiverId()
             && $paymentResponse->getStatus() == 'done'
-            && Tools::ps_round((float)($cart->getOrderTotal(true, Cart::BOTH)), $precision) == $paymentResponse->getAmount()
+            && Tools::ps_round((float)($order->total_paid_tax_incl), $precision) == $paymentResponse->getAmount()
         ) {
             if($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
                 $order->setCurrentState((int)Configuration::get('PS_OS_PAYMENT'));
@@ -105,12 +107,10 @@ class KhipuPostback
                 .'] [Payment Status: '
                 . $paymentResponse->getStatus()
                 . '] [Order Total: '
-                . Tools::ps_round((float)($cart->getOrderTotal(true, Cart::BOTH)), $precision)
+                . Tools::ps_round((float)($order->total_paid_tax_incl), $precision)
                 . '] [Payment Amount: '. $paymentResponse->getAmount()
                 .']');
         }
 
     }
-
-
 }
