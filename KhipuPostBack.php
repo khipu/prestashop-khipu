@@ -18,7 +18,7 @@
 class KhipuPostback
 {
 
-    const PLUGIN_VERSION = '4.0.6';
+    const PLUGIN_VERSION = '4.0.7';
 
     public function init()
     {
@@ -94,8 +94,12 @@ class KhipuPostback
             && $paymentResponse->getStatus() == 'done'
             && Tools::ps_round((float)($order->total_paid_tax_incl), $precision) == $paymentResponse->getAmount()
         ) {
-            if($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+            if($order->current_state != (int)Configuration::get('PS_OS_PAYMENT')) {
                 $order->setCurrentState((int)Configuration::get('PS_OS_PAYMENT'));
+                $order_payment_collection = $order->getOrderPaymentCollection();
+                $order_payment = $order_payment_collection[0];
+                $order_payment->transaction_id = $paymentResponse->getPaymentId();
+                $order_payment->update();
             }
             http_response_code(200);
             exit('Notification received correctly');

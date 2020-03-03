@@ -36,7 +36,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.6';
+        $this->version = '4.0.7';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
@@ -58,9 +58,9 @@ class KhipuPayment extends PaymentModule
         $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
         $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
 
-        $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get(
-            'KHIPU_HOURS_TIMEOUT'
-        ) : 6);
+        $this->minutesTimeout = (Configuration::get('KHIPU_MINUTES_TIMEOUT') ? Configuration::get(
+            'KHIPU_MINUTES_TIMEOUT'
+        ) : 360);
     }
 
 
@@ -180,7 +180,7 @@ class KhipuPayment extends PaymentModule
     public function cancelExpiredOrders()
     {
 
-        $result = Db::getInstance()->ExecuteS('SELECT `id_order` FROM `' . _DB_PREFIX_ . 'orders` WHERE DATE_ADD(date_add, INTERVAL +' . Configuration::get('KHIPU_HOURS_TIMEOUT') . ' HOUR) < \'' . pSQL(date('Y-m-d H:i:00', time()))
+        $result = Db::getInstance()->ExecuteS('SELECT `id_order` FROM `' . _DB_PREFIX_ . 'orders` WHERE DATE_ADD(date_add, INTERVAL +' . Configuration::get('KHIPU_MINUTES_TIMEOUT') . ' HOUR) < \'' . pSQL(date('Y-m-d H:i:00', time()))
             . '\' AND current_state = ' . Configuration::get('PS_OS_KHIPU_OPEN'));
 
         foreach ($result AS $orderId) {
@@ -250,16 +250,16 @@ class KhipuPayment extends PaymentModule
             Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
             Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
 
-            if ((int)Tools::getValue('hoursTimeout') > 0) {
-                Configuration::updateValue('KHIPU_HOURS_TIMEOUT', (int)Tools::getValue('hoursTimeout'));
+            if ((int)Tools::getValue('minutesTimeout') > 0) {
+                Configuration::updateValue('KHIPU_MINUTES_TIMEOUT', (int)Tools::getValue('minutesTimeout'));
             }
 
             $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
             $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
 
-            $this->hoursTimeout = (Configuration::get('KHIPU_HOURS_TIMEOUT') ? Configuration::get(
-                'KHIPU_HOURS_TIMEOUT'
-            ) : 6);
+            $this->minutesTimeout = (Configuration::get('KHIPU_MINUTES_TIMEOUT') ? Configuration::get(
+                'KHIPU_MINUTES_TIMEOUT'
+            ) : 360);
         }
 
 
@@ -268,7 +268,7 @@ class KhipuPayment extends PaymentModule
             'post_url' => $_SERVER['REQUEST_URI'],
             'data_merchantid' => $this->merchantID,
             'data_secretcode' => $this->secretCode,
-            'data_hoursTimeout' => $this->hoursTimeout,
+            'data_minutesTimeout' => $this->minutesTimeout,
             'version' => $this->version,
             'api_version' => $this->apiVersion,
             'img_header' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/logo.png"
@@ -829,14 +829,6 @@ class KhipuPayment extends PaymentModule
                     $new_history->id_order = (int)$order->id;
                     $new_history->changeIdOrderState((int)$id_order_state, $order, true);
                     $new_history->addWithemail(true, $extra_vars);
-
-                    // Switch to back order if needed
-                    if (Configuration::get('PS_STOCK_MANAGEMENT') && ($order_detail->getStockState() || $order_detail->product_quantity_in_stock <= 0)) {
-                        $history = new OrderHistory();
-                        $history->id_order = (int)$order->id;
-                        $history->changeIdOrderState(Configuration::get($order->valid ? 'PS_OS_OUTOFSTOCK_PAID' : 'PS_OS_OUTOFSTOCK_UNPAID'), $order, true);
-                        $history->addWithemail();
-                    }
 
                     unset($order_detail);
 

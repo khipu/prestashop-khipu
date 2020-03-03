@@ -64,11 +64,11 @@
 
 
                     <div class="form-group row">
-                        <label for="hoursTimeout"
-                               class="col-sm-3 col-form-label">{l s='Horas para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
+                        <label for="minutesTimeout"
+                               class="col-sm-3 col-form-label">{l s='Minutos para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
                         <div class="col-sm-9">
-                            <input type="number" id="hoursTimeout" class="form-control" name="hoursTimeout"
-                                   value="{$data_hoursTimeout|escape:'htmlall':'UTF-8'}"/>
+                            <input type="number" id="minutesTimeout" class="form-control" name="minutesTimeout"
+                                   value="{$data_minutesTimeout|escape:'htmlall':'UTF-8'}"/>
                         </div>
                     </div>
 

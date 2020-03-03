@@ -64,7 +64,7 @@ class KhipuPaymentWebpayModuleFrontController extends ModuleFrontController
 
         $precision = 0; //BOB $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_; //LM: CHECK
 
-        $interval = new DateInterval('PT' . Configuration::get('KHIPU_HOURS_TIMEOUT') . 'H');
+        $interval = new DateInterval('PT' . Configuration::get('KHIPU_MINUTES_TIMEOUT') . 'M');
         $timeout = new DateTime('now');
         $timeout->add($interval);
 
