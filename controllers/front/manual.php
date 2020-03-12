@@ -82,6 +82,8 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
             'payer_email' => $customer->email
         ,
             'expires_date' => $timeout
+        ,
+            'mandatory_payment_method' => 'REGULAR_TRANSFER'
         );
 
         try {

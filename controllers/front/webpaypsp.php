@@ -15,7 +15,7 @@
  * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
-class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
+class KhipuPaymentWebpaypspModuleFrontController extends ModuleFrontController
 {
 
     public function initContent()
@@ -45,6 +45,7 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
 
         $customer = $this->context->customer;
 
+
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
@@ -61,7 +62,7 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
 
         $currency = Currency::getCurrencyInstance($cart->id_currency);
 
-        $precision = 2; //BOB $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_;
+        $precision = 0; //BOB $currency['decimals'] * _PS_PRICE_COMPUTE_PRECISION_; //LM: CHECK
 
         $interval = new DateInterval('PT' . Configuration::get('KHIPU_MINUTES_TIMEOUT') . 'M');
         $timeout = new DateTime('now');
@@ -74,7 +75,7 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
         ,
             'cancel_url' => Context::getContext()->link->getModuleLink($this->module->name, 'validate', array("return"=>"cancel", "reference"=>$order->reference))
         ,
-            'notify_url' => Context::getContext()->link->getModuleLink($this->module->name, 'validate', array())
+            'notify_url' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->module->name}/validate.php"
         ,
             'notify_api_version' => '1.3'
         ,
@@ -82,11 +83,12 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
         ,
             'expires_date' => $timeout
         ,
-            'mandatory_payment_method' => 'PAY_ME'
+            'mandatory_payment_method' => 'WEBPAY_PSP'
         );
 
         try {
-            $createPaymentResponse = $payments->paymentsPost(Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
+            $createPaymentResponse = $payments->paymentsPost(
+                Configuration::get('PS_SHOP_NAME') . ' Carro #' . $cart->id
                 , $currency->iso_code
                 , Tools::ps_round((float)$cart->getOrderTotal(true, Cart::BOTH), $precision)
                 , $opts);
@@ -100,6 +102,6 @@ class KhipuPaymentPaymeModuleFrontController extends ModuleFrontController
             return;
         }
 
-        Tools::redirect($createPaymentResponse->getPaymentUrl());
+        Tools::redirect($createPaymentResponse->getWebpayUrl());
     }
 }

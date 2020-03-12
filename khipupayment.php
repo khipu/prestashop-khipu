@@ -36,7 +36,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.7';
+        $this->version = '4.0.8';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
@@ -161,8 +161,9 @@ class KhipuPayment extends PaymentModule
                 }
                 if ($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY")) {
                     $payment_options[] = $this->getKhipuWebPay($method);
-                } else if ($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY_PSP")) {
-                    $payment_options[] = $this->getKhipuWebPay($method);
+                }
+                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY_PSP")) {
+                    $payment_options[] = $this->getKhipuWebPspPay($method);
                 }
                 break;
 
@@ -237,6 +238,19 @@ class KhipuPayment extends PaymentModule
             ->setAction($this->context->link->getModuleLink($this->name, 'webpay', array(), true))
             ->setAdditionalInformation(
                 $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_webpay.tpl')
+            )
+            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
+
+        return $webpay;
+    }
+
+    public function getKhipuWebPspPay(Khipu\Model\PaymentMethodItem $paymentMethod)
+    {
+        $webpay = new PaymentOption();
+        $webpay->setCallToActionText($this->l('Paga mediante WebPay'))
+            ->setAction($this->context->link->getModuleLink($this->name, 'webpaypsp', array(), true))
+            ->setAdditionalInformation(
+                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_webpaypsp.tpl')
             )
             ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
 
