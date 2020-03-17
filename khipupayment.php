@@ -36,7 +36,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.8';
+        $this->version = '4.0.9';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
@@ -181,7 +181,7 @@ class KhipuPayment extends PaymentModule
     public function cancelExpiredOrders()
     {
 
-        $result = Db::getInstance()->ExecuteS('SELECT `id_order` FROM `' . _DB_PREFIX_ . 'orders` WHERE DATE_ADD(date_add, INTERVAL +' . Configuration::get('KHIPU_MINUTES_TIMEOUT') . ' HOUR) < \'' . pSQL(date('Y-m-d H:i:00', time()))
+        $result = Db::getInstance()->ExecuteS('SELECT `id_order` FROM `' . _DB_PREFIX_ . 'orders` WHERE DATE_ADD(date_add, INTERVAL +' . Configuration::get('KHIPU_MINUTES_TIMEOUT') . ' MINUTES) < \'' . pSQL(date('Y-m-d H:i:00', time()))
             . '\' AND current_state = ' . Configuration::get('PS_OS_KHIPU_OPEN'));
 
         foreach ($result AS $orderId) {
