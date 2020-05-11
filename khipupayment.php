@@ -36,7 +36,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.9';
+        $this->version = '4.0.10';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';

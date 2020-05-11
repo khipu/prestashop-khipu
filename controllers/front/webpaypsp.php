@@ -71,7 +71,7 @@ class KhipuPaymentWebpaypspModuleFrontController extends ModuleFrontController
         $opts = array(
             'transaction_id' => $order->reference
         ,
-            'return_url' => Context::getContext()->link->getModuleLink($this->module->name, 'validate', array("return"=>"ok", "reference"=>$order->reference))
+            'return_url' => Context::getContext()->link->getModuleLink($this->module->name, 'validate', array("return"=>"ok", "reference"=>$order->reference, "cartId"=>$cart->id))
         ,
             'cancel_url' => Context::getContext()->link->getModuleLink($this->module->name, 'validate', array("return"=>"cancel", "reference"=>$order->reference))
         ,

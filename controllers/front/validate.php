@@ -32,6 +32,7 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
 
     private function handleGET()
     {
+        $cart_id = Tools::getValue('cartId');
         $reference = Tools::getValue('reference');
         $orders = Order::getByReference($reference);
         if (count($orders) == 0) {
@@ -43,7 +44,9 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
             );
         }
 
+
         $customer = $orders[0]->getCustomer();
+
 
         if (Tools::getValue('return') == 'cancel') {
             foreach ($orders as $order) {
@@ -60,21 +63,15 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
 
         } else {
             if (Tools::getValue('return') == 'ok') {
-                if ($this->context->customer->isLogged()) {
-                    Tools::redirect(
-                        Context::getContext()->link->getPageLink(
-                            'order-detail', true, null,
-                            array("id_order" => $orders[0]->id)
-                        )
-                    );
-                } else {
-                    Tools::redirect(
-                        Context::getContext()->link->getPageLink(
-                            'guest-tracking', true, null,
-                            array("order_reference" => $orders[0]->reference, "email" => $customer->email)
-                        )
-                    );
-                }
+                Tools::redirect(
+                    Context::getContext()->link->getPageLink(
+                        'order-confirmation', true, null,
+                        array("id_cart" => $cart_id
+                        , "id_module" => Module::getInstanceByName($orders[0]->module)->id
+                        , "id_order" => $orders[0]->id
+                        , "key" => $customer->secure_key)
+                    )
+                );
             }
         }
     }
