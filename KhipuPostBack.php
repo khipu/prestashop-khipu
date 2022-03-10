@@ -18,7 +18,7 @@
 class KhipuPostback
 {
 
-    const PLUGIN_VERSION = '4.0.10';
+    const PLUGIN_VERSION = '4.0.11';
 
     public function init()
     {

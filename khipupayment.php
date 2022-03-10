@@ -36,7 +36,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.10';
+        $this->version = '4.0.11';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
@@ -159,21 +159,7 @@ class KhipuPayment extends PaymentModule
                 if ($method = $this->getPaymentMethod($paymentMethodsResponse, "REGULAR_TRANSFER")) {
                     $payment_options[] = $this->getKhipuNormalTransferPayment($method);
                 }
-                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY")) {
-                    $payment_options[] = $this->getKhipuWebPay($method);
-                }
-                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "WEBPAY_PSP")) {
-                    $payment_options[] = $this->getKhipuWebPspPay($method);
-                }
                 break;
-
-            case "BOB":
-            case "USD":
-                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "PAY_ME")) {
-                    $payment_options[] = $this->getKhipuPayMe($method);
-                }
-                break;
-
         }
         return $payment_options;
     }
@@ -181,13 +167,15 @@ class KhipuPayment extends PaymentModule
     public function cancelExpiredOrders()
     {
 
-        $result = Db::getInstance()->ExecuteS('SELECT `id_order` FROM `' . _DB_PREFIX_ . 'orders` WHERE DATE_ADD(date_add, INTERVAL +' . Configuration::get('KHIPU_MINUTES_TIMEOUT') . ' MINUTES) < \'' . pSQL(date('Y-m-d H:i:00', time()))
+        $result = Db::getInstance()->ExecuteS('SELECT `id_order` FROM `' . _DB_PREFIX_ . 'orders` WHERE DATE_ADD(date_add, INTERVAL +' . Configuration::get('KHIPU_MINUTES_TIMEOUT') . ' MINUTE) < \'' . date('Y-m-d H:i:00', time())
             . '\' AND current_state = ' . Configuration::get('PS_OS_KHIPU_OPEN'));
 
-        foreach ($result AS $orderId) {
-            $order = new Order(intval($orderId['id_order']));
-            if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
-                $this->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
+        if ($result) {
+            foreach ($result as $orderId) {
+                $order = new Order(intval($orderId['id_order']));
+                if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+                    $this->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
+                }
             }
         }
     }
@@ -216,45 +204,6 @@ class KhipuPayment extends PaymentModule
             ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
 
         return $normalTransfer;
-    }
-
-    public function getKhipuPayMe(Khipu\Model\PaymentMethodItem $paymentMethod)
-    {
-        $payme = new PaymentOption();
-        $payme->setCallToActionText($this->l('Paga mediante PayMe'))
-            ->setAction($this->context->link->getModuleLink($this->name, 'payme', array(), true))
-            ->setAdditionalInformation(
-                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_payme.tpl')
-            )
-            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
-
-        return $payme;
-    }
-
-    public function getKhipuWebPay(Khipu\Model\PaymentMethodItem $paymentMethod)
-    {
-        $webpay = new PaymentOption();
-        $webpay->setCallToActionText($this->l('Paga mediante WebPay'))
-            ->setAction($this->context->link->getModuleLink($this->name, 'webpay', array(), true))
-            ->setAdditionalInformation(
-                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_webpay.tpl')
-            )
-            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
-
-        return $webpay;
-    }
-
-    public function getKhipuWebPspPay(Khipu\Model\PaymentMethodItem $paymentMethod)
-    {
-        $webpay = new PaymentOption();
-        $webpay->setCallToActionText($this->l('Paga mediante WebPay'))
-            ->setAction($this->context->link->getModuleLink($this->name, 'webpaypsp', array(), true))
-            ->setAdditionalInformation(
-                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_webpaypsp.tpl')
-            )
-            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
-
-        return $webpay;
     }
 
     public function getContent()
