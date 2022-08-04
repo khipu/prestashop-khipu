@@ -36,7 +36,7 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.11';
+        $this->version = '4.0.12';
         $this->apiVersion = '2.0';
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
@@ -151,11 +151,11 @@ class KhipuPayment extends PaymentModule
 
 
         $payment_options = array();
+        if ($method = $this->getPaymentMethod($paymentMethodsResponse, "SIMPLIFIED_TRANSFER")) {
+            $payment_options[] = $this->getKhipuSimplifiedTransferPayment($method);
+        }
         switch ($this->context->currency->iso_code) {
-            case "CLP":
-                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "SIMPLIFIED_TRANSFER")) {
-                    $payment_options[] = $this->getKhipuSimplifiedTransferPayment($method);
-                }
+           case "CLP":
                 if ($method = $this->getPaymentMethod($paymentMethodsResponse, "REGULAR_TRANSFER")) {
                     $payment_options[] = $this->getKhipuNormalTransferPayment($method);
                 }

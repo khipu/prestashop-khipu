@@ -63,6 +63,11 @@ class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
         $currency = Currency::getCurrencyInstance($cart->id_currency);
 
         $precision = 0; //CLP $currency->decimals * _PS_PRICE_COMPUTE_PRECISION_;
+        if($currency->iso_code =='CLP'){
+            $precision = 0;
+        } else if ($currency->iso_code == 'ARS' OR $currency->iso_code == 'EUR'){
+            $precision = 2;
+        }
 
         $interval = new DateInterval('PT' . Configuration::get('KHIPU_MINUTES_TIMEOUT') . 'M');
         $timeout = new DateTime('now');
