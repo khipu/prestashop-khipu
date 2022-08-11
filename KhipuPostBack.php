@@ -18,7 +18,7 @@
 class KhipuPostback
 {
 
-    const PLUGIN_VERSION = '4.0.11';
+    const PLUGIN_VERSION = '4.0.12';
 
     public function init()
     {
@@ -86,7 +86,7 @@ class KhipuPostback
         $precision = 0;
         if($currency->iso_code =='CLP'){
             $precision = 0;
-        } else if ($currency->iso_code == 'BOB'){
+        } else if ($currency->iso_code == 'ARS' OR $currency->iso_code == 'EUR'){
             $precision = 2;
         }
 
