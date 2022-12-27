@@ -73,6 +73,13 @@ class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
         $timeout = new DateTime('now');
         $timeout->add($interval);
 
+        if ($cart->hasProducts()) {
+            $products = $cart->getProducts();
+            foreach ($products as $product) {
+                $cartProductsKhipu .= $product['cart_quantity'] . " " . $product['name'] . "\n";
+            }
+        }
+
         $opts = array(
             'transaction_id' => $order->reference
         ,
@@ -89,6 +96,9 @@ class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
             'expires_date' => $timeout
         ,
             'mandatory_payment_method' => 'SIMPLIFIED_TRANSFER'
+        ,
+            'body' => $cartProductsKhipu
+
         );
 
         try {
