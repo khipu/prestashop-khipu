@@ -36,9 +36,9 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.0.13';
+        $this->version = '4.1';
         $this->apiVersion = '2.0';
-        $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
+        $this->ps_versions_compliancy = array('min' => '8.0', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
         $this->controllers = array('validate');
         $this->is_eu_compatible = 1;
@@ -73,46 +73,129 @@ class KhipuPayment extends PaymentModule
         }
     }
 
+
     private function addOrderStates()
     {
-        if (!(Configuration::get('PS_OS_KHIPU_OPEN') > 0)) {
-            $OrderState = new OrderState(null, Configuration::get('PS_LANG_DEFAULT'));
-            $OrderState->name = "Esperando pago";
-            $OrderState->invoice = false;
-            $OrderState->send_email = false;
-            $OrderState->module_name = $this->name;
-            $OrderState->color = "RoyalBlue";
-            $OrderState->unremovable = true;
-            $OrderState->hidden = false;
-            $OrderState->logable = false;
-            $OrderState->delivery = false;
-            $OrderState->shipped = false;
-            $OrderState->paid = false;
-            $OrderState->deleted = false;
-            $OrderState->template = "order_changed";
-            $OrderState->add();
+        $khipuOpenOrderStateId = (int) Configuration::get('PS_OS_KHIPU_OPEN');
 
-            Configuration::updateValue("PS_OS_KHIPU_OPEN", $OrderState->id);
-
-            if (file_exists(dirname(dirname(dirname(__file__))) . '/img/os/10.gif')) {
-                copy(
-                    dirname(dirname(dirname(__file__))) . '/img/os/10.gif',
-                    dirname(dirname(dirname(__file__))) . '/img/os/' . $OrderState->id . '.gif'
-                );
-            }
+        // Verificar si el estado de pedido de Khipu ya existe
+        if ($khipuOpenOrderStateId > 0) {
+            return; // El estado de pedido de Khipu ya está configurado
         }
+
+        // Configuración del nuevo estado de pedido
+        $orderStateData = array(
+            'name' => array(),
+            'color' => '#4169e1',
+            'send_email' => false,
+            'unremovable' => true,
+            'hidden' => false,
+            'logable' => false,
+            'delivery' => false,
+            'shipped' => false,
+            'paid' => false,
+            'deleted' => false,
+            'template' => 'order_changed',
+            'module_name' => 'khipupayment'
+        );
+
+        foreach (Language::getLanguages() as $language) {
+            $orderStateData['name'][(int)$language['id_lang']] = 'Esperando pago Khipu';
+        }
+
+        // Crear el nuevo estado de pedido
+        $orderState = new OrderState();
+        $orderState->hydrate($orderStateData);
+        $orderState->add();
+
+        // Actualizar la configuración del estado de pedido de Khipu
+        Configuration::updateValue('PS_OS_KHIPU_OPEN', (int) $orderState->id);
+
+        // Configurar la imagen del estado de pedido
+        $orderState->updateImg(dirname(__FILE__) . '/views/img/status.gif');
     }
+
 
     public function uninstall()
     {
-        return
-            parent::uninstall()
-            && Configuration::deleteByName('KHIPU_MERCHANTID')
-            && Configuration::deleteByName('KHIPU_SECRETCODE')
-            && $this->unregisterHook('paymentOptions')
-            && $this->unregisterHook('paymentReturn');
+        try {
+            $success = true;
 
+            // Eliminar configuraciones del módulo
+            $success &= Configuration::deleteByName('KHIPU_MERCHANTID');
+            $success &= Configuration::deleteByName('KHIPU_SECRETCODE');
+
+            // Desregistrarse de los hooks
+            $success &= $this->unregisterHook('paymentOptions');
+            $success &= $this->unregisterHook('paymentReturn');
+
+            // Verificar si la desinstalación se realizó correctamente
+            if ($success) {
+                return parent::uninstall();
+            } else {
+                throw new Exception('Error during uninstallation: not all actions were successful.');
+            }
+        } catch (Exception $e) {
+            PrestaShopLogger::addLog('Error during uninstallation: ' . $e->getMessage(), 3, null, 'Module', (int)$this->id, true);
+            return false;
+        }
     }
+
+
+    public function hookPaymentReturn($params)
+    {
+        if (!$this->active) {
+            return;
+        }
+
+        // Verificar si el pedido se ha completado correctamente
+        if (isset($params['order']) && Validate::isLoadedObject($params['order'])) {
+            $order = $params['order'];
+
+            // Obtener el estado del pedido
+            $orderStatus = $order->getCurrentState();
+
+            // Verificar si el estado del pedido es el de pago confirmado
+            if ($orderStatus == Configuration::get('PS_OS_PAYMENT') || $orderStatus == Configuration::get('PS_OS_KHIPU_OPEN')) {
+                // Obtener el contenido del carrito
+                $cartContent = array();
+                $products = $order->getProducts();
+                foreach ($products as $product) {
+                    $cartContent[] = array(
+                        'name' => $product['product_name'],
+                        'quantity' => $product['product_quantity'],
+                        'price' => Tools::displayPrice($product['product_price'], $order->id_currency),
+                    );
+                }
+
+                // Obtener los datos del pagador
+                $customerData = array(
+                    'first_name' => $order->getCustomer()->firstname,
+                    'last_name' => $order->getCustomer()->lastname,
+                    'email' => $order->getCustomer()->email,
+                    // Agrega otros campos según sea necesario
+                );
+
+                // Asignar variables para la plantilla
+                $this->context->smarty->assign(array(
+                    'status' => 'ok',
+                    'id_order' => $order->reference,
+                    'total_to_pay' => Tools::displayPrice($order->total_paid, $order->id_currency),
+                    'cart_content' => $cartContent,
+                    'customer_data' => $customerData,
+                ));
+
+                // Renderizar la plantilla y devolverla como salida
+                return $this->display(__FILE__, 'views/templates/hook/payment_return.tpl');
+            }
+        }
+
+        // Si el estado del pedido no es el esperado, mostrar un mensaje de error genérico
+        $this->context->smarty->assign('status', 'failed');
+        return $this->display(__FILE__, 'views/templates/hook/payment_return.tpl');
+    }
+
+
 
     private function getPaymentMethod(Khipu\Model\PaymentMethodsResponse $paymentMethods, $id)
     {
@@ -142,7 +225,7 @@ class KhipuPayment extends PaymentModule
         $configuration = new Khipu\Configuration();
         $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
         $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', $this->module->version);
+        $configuration->setPlatform('prestashop-khipu', $this->version);
 
 
         $client = new Khipu\ApiClient($configuration);
@@ -166,19 +249,34 @@ class KhipuPayment extends PaymentModule
 
     public function cancelExpiredOrders()
     {
+        // Obtén el tiempo de espera desde la configuración del módulo
+        $waiting_period = (int)Configuration::get('KHIPU_MINUTES_TIMEOUT');
 
-        $result = Db::getInstance()->ExecuteS('SELECT `id_order` FROM `' . _DB_PREFIX_ . 'orders` WHERE DATE_ADD(date_add, INTERVAL +' . Configuration::get('KHIPU_MINUTES_TIMEOUT') . ' MINUTE) < \'' . date('Y-m-d H:i:00', time())
-            . '\' AND current_state = ' . Configuration::get('PS_OS_KHIPU_OPEN'));
+        // Calcula la fecha límite para cancelar los pedidos
+        $expiration_date = date('Y-m-d H:i:00', strtotime("-$waiting_period minutes"));
+
+        // Consulta los pedidos que están en estado "Esperando Pago" y han expirado
+        $result = Db::getInstance()->executeS(
+            'SELECT `id_order` 
+        FROM `' . _DB_PREFIX_ . 'orders` 
+        WHERE `date_add` < \'' . pSQL($expiration_date) . '\' 
+        AND `current_state` = ' . (int)Configuration::get('PS_OS_KHIPU_OPEN')
+        );
 
         if ($result) {
-            foreach ($result as $orderId) {
-                $order = new Order(intval($orderId['id_order']));
+            foreach ($result as $order_data) {
+                $order_id = (int)$order_data['id_order'];
+                $order = new Order($order_id);
+
+                // Verifica si el pedido todavía está en estado "Esperando Pago"
                 if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+                    // Actualiza el estado del pedido a "Cancelado"
                     $this->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
                 }
             }
         }
     }
+
 
     public function getKhipuSimplifiedTransferPayment(Khipu\Model\PaymentMethodItem $paymentMethod)
     {
@@ -262,7 +360,7 @@ class KhipuPayment extends PaymentModule
      */
     public function validateOrder($id_cart, $id_order_state, $amount_paid, $payment_method = 'Unknown',
                                   $message = null, $extra_vars = array(), $currency_special = null, $dont_touch_amount = false,
-                                  $secure_key = false, Shop $shop = null)
+                                  $secure_key = false, Shop $shop = null, ?string $order_reference = null)
     {
         if (self::DEBUG_MODE) {
             PrestaShopLogger::addLog('PaymentModule::validateOrder - Function called', 1, null, 'Cart', (int)$id_cart, true);
