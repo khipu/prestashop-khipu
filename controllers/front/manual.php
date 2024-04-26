@@ -28,15 +28,15 @@ class KhipuPaymentManualModuleFrontController extends ModuleFrontController
         $cart = $this->context->cart;
 
         $this->module->validateOrder(
-            (int)self::$cart->id,
+            (int) $this->context->cart->id,
             (int)Configuration::get('PS_OS_KHIPU_OPEN'),
-            (float)self::$cart->getOrderTotal(),
+            (float)$cart->getOrderTotal(),
             $this->module->displayName,
             null,
             array(),
             null,
             false,
-            self::$cart->secure_key
+            $cart->secure_key
         );
 
         $order = new Order(Order::getOrderByCartId($cart->id));
