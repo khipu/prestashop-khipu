@@ -17,19 +17,21 @@
 
 {assign var='current_step' value='payment'}
 
-
 <h2>{l s='Error de conexión con khipu' mod='khipupayment'}</h2>
 
 <ul>
-    <li><strong>{l s='Estado' mod='khipupayment'}</strong>: {$error->getStatus()}</li>
-    <li><strong>{l s='Mensaje' mod='khipupayment'}</strong>: {$error->getMessage()}</li>
-
-    {if method_exists($error, 'getErrors')}
+    {if isset($error.status)}
+        <li><strong>{l s='Estado' mod='khipupayment'}</strong>: {$error.status}</li>
+    {/if}
+    {if isset($error.message)}
+        <li><strong>{l s='Mensaje' mod='khipupayment'}</strong>: {$error.message}</li>
+    {/if}
+    {if isset($error.errors)}
         <li>{l s='Errores' mod='khipupayment'}
             <ul>
-            {foreach from=$error->getErrors() item=errorItem}
-                <li><strong>{$errorItem->getField()}</strong>: {$errorItem->getMessage()}</li>
-            {/foreach}
+                {foreach from=$error.errors item=errorItem}
+                    <li><strong>{$errorItem.field}</strong>: {$errorItem.message}</li>
+                {/foreach}
             </ul>
         </li>
     {/if}

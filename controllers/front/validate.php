@@ -17,7 +17,6 @@
 
 class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
 {
-
     public $ssl = true;
 
     public function initContent()
@@ -35,6 +34,7 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
         $cart_id = Tools::getValue('cartId');
         $reference = Tools::getValue('reference');
         $orders = Order::getByReference($reference);
+
         if (count($orders) == 0) {
             Tools::redirect(
                 Context::getContext()->link->getPageLink(
@@ -44,9 +44,7 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
             );
         }
 
-
         $customer = $orders[0]->getCustomer();
-
 
         if (Tools::getValue('return') == 'cancel') {
             foreach ($orders as $order) {
@@ -66,10 +64,12 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
                 Tools::redirect(
                     Context::getContext()->link->getPageLink(
                         'order-confirmation', true, null,
-                        array("id_cart" => $cart_id
-                        , "id_module" => Module::getInstanceByName($orders[0]->module)->id
-                        , "id_order" => $orders[0]->id
-                        , "key" => $customer->secure_key)
+                        array(
+                            "id_cart" => $cart_id,
+                            "id_module" => Module::getInstanceByName($orders[0]->module)->id,
+                            "id_order" => $orders[0]->id,
+                            "key" => $customer->secure_key
+                        )
                     )
                 );
             }

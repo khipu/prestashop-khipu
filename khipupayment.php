@@ -18,7 +18,6 @@
 use PrestaShop\PrestaShop\Core\Payment\PaymentOption;
 use PrestaShop\PrestaShop\Adapter\StockManager;
 
-require __DIR__ . '/vendor/autoload.php';
 if (!defined('_PS_VERSION_')) {
     exit;
 }
@@ -36,9 +35,9 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.1';
-        $this->apiVersion = '2.0';
-        $this->ps_versions_compliancy = array('min' => '8.0', 'max' => _PS_VERSION_);
+        $this->version = '4.3';
+        $this->apiVersion = '3.0';
+        $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
         $this->controllers = array('validate');
         $this->is_eu_compatible = 1;
@@ -56,34 +55,28 @@ class KhipuPayment extends PaymentModule
             $this->warning = $this->l('No currency has been set for this module.');
         }
         $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
+        $this->apiKey = Configuration::get('KHIPU_API_KEY');
         $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
-
-        $this->minutesTimeout = (Configuration::get('KHIPU_MINUTES_TIMEOUT') ? Configuration::get(
-            'KHIPU_MINUTES_TIMEOUT'
-        ) : 360);
+        $this->minutesTimeout = (Configuration::get('KHIPU_MINUTES_TIMEOUT') ? Configuration::get('KHIPU_MINUTES_TIMEOUT') : 360);
     }
-
 
     public function install()
     {
-
         if (parent::install() && $this->registerHook('paymentOptions') && $this->registerHook('paymentReturn')) {
             $this->addOrderStates();
             return true;
         }
+        return false;
     }
-
 
     private function addOrderStates()
     {
         $khipuOpenOrderStateId = (int) Configuration::get('PS_OS_KHIPU_OPEN');
 
-        // Verificar si el estado de pedido de Khipu ya existe
         if ($khipuOpenOrderStateId > 0) {
-            return; // El estado de pedido de Khipu ya está configurado
+            return;
         }
 
-        // Configuración del nuevo estado de pedido
         $orderStateData = array(
             'name' => array(),
             'color' => '#4169e1',
@@ -103,33 +96,22 @@ class KhipuPayment extends PaymentModule
             $orderStateData['name'][(int)$language['id_lang']] = 'Esperando pago Khipu';
         }
 
-        // Crear el nuevo estado de pedido
         $orderState = new OrderState();
         $orderState->hydrate($orderStateData);
         $orderState->add();
-
-        // Actualizar la configuración del estado de pedido de Khipu
         Configuration::updateValue('PS_OS_KHIPU_OPEN', (int) $orderState->id);
-
-        // Configurar la imagen del estado de pedido
         $orderState->updateImg(dirname(__FILE__) . '/views/img/status.gif');
     }
-
 
     public function uninstall()
     {
         try {
             $success = true;
-
-            // Eliminar configuraciones del módulo
-            $success &= Configuration::deleteByName('KHIPU_MERCHANTID');
+            $success &= Configuration::deleteByName('KHIPU_API_KEY');
             $success &= Configuration::deleteByName('KHIPU_SECRETCODE');
-
-            // Desregistrarse de los hooks
             $success &= $this->unregisterHook('paymentOptions');
             $success &= $this->unregisterHook('paymentReturn');
 
-            // Verificar si la desinstalación se realizó correctamente
             if ($success) {
                 return parent::uninstall();
             } else {
@@ -141,23 +123,17 @@ class KhipuPayment extends PaymentModule
         }
     }
 
-
     public function hookPaymentReturn($params)
     {
         if (!$this->active) {
             return;
         }
 
-        // Verificar si el pedido se ha completado correctamente
         if (isset($params['order']) && Validate::isLoadedObject($params['order'])) {
             $order = $params['order'];
-
-            // Obtener el estado del pedido
             $orderStatus = $order->getCurrentState();
 
-            // Verificar si el estado del pedido es el de pago confirmado
             if ($orderStatus == Configuration::get('PS_OS_PAYMENT') || $orderStatus == Configuration::get('PS_OS_KHIPU_OPEN')) {
-                // Obtener el contenido del carrito
                 $cartContent = array();
                 $products = $order->getProducts();
                 foreach ($products as $product) {
@@ -168,15 +144,12 @@ class KhipuPayment extends PaymentModule
                     );
                 }
 
-                // Obtener los datos del pagador
                 $customerData = array(
                     'first_name' => $order->getCustomer()->firstname,
                     'last_name' => $order->getCustomer()->lastname,
                     'email' => $order->getCustomer()->email,
-                    // Agrega otros campos según sea necesario
                 );
 
-                // Asignar variables para la plantilla
                 $this->context->smarty->assign(array(
                     'status' => 'ok',
                     'id_order' => $order->reference,
@@ -185,23 +158,18 @@ class KhipuPayment extends PaymentModule
                     'customer_data' => $customerData,
                 ));
 
-                // Renderizar la plantilla y devolverla como salida
                 return $this->display(__FILE__, 'views/templates/hook/payment_return.tpl');
             }
         }
 
-        // Si el estado del pedido no es el esperado, mostrar un mensaje de error genérico
         $this->context->smarty->assign('status', 'failed');
         return $this->display(__FILE__, 'views/templates/hook/payment_return.tpl');
     }
 
-
-
-    private function getPaymentMethod(Khipu\Model\PaymentMethodsResponse $paymentMethods, $id)
+    private function getPaymentMethod($paymentMethods, $id)
     {
-
-        foreach ($paymentMethods->getPaymentMethods() as $paymentMethod) {
-            if (strcmp($paymentMethod->getId(), $id) == 0) {
+        foreach ($paymentMethods as $paymentMethod) {
+            if (strcmp($paymentMethod['id'], $id) == 0) {
                 return $paymentMethod;
             }
         }
@@ -222,24 +190,17 @@ class KhipuPayment extends PaymentModule
             return;
         }
         $this->cancelExpiredOrders();
-        $configuration = new Khipu\Configuration();
-        $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
-        $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', $this->version);
-
-
-        $client = new Khipu\ApiClient($configuration);
-        $paymentMethodsApi = new Khipu\Client\PaymentMethodsApi($client);
-        $paymentMethodsResponse = $paymentMethodsApi->merchantsIdPaymentMethodsGet(Configuration::get('KHIPU_MERCHANTID'));
-
-
-        $payment_options = array();
-        if ($method = $this->getPaymentMethod($paymentMethodsResponse, "SIMPLIFIED_TRANSFER")) {
+        $paymentMethods = $this->getKhipuPaymentMethods();
+        if ($paymentMethods === null) {
+            return [];
+        }
+        $payment_options = [];
+        if ($method = $this->getPaymentMethod($paymentMethods, "SIMPLIFIED_TRANSFER")) {
             $payment_options[] = $this->getKhipuSimplifiedTransferPayment($method);
         }
         switch ($this->context->currency->iso_code) {
-           case "CLP":
-                if ($method = $this->getPaymentMethod($paymentMethodsResponse, "REGULAR_TRANSFER")) {
+            case "CLP":
+                if ($method = $this->getPaymentMethod($paymentMethods, "REGULAR_TRANSFER")) {
                     $payment_options[] = $this->getKhipuNormalTransferPayment($method);
                 }
                 break;
@@ -247,15 +208,41 @@ class KhipuPayment extends PaymentModule
         return $payment_options;
     }
 
+
+    private function getKhipuPaymentMethods()
+    {
+        $url = 'https://payment-api.khipu.com/v3/merchants/' . $this->merchantID . '/paymentMethods';
+        $headers = [
+            'x-api-key: ' . $this->apiKey
+        ];
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode != 200) {
+            return null;
+        }
+        $responseData = json_decode($response, true);
+
+        if (!isset($responseData['paymentMethods'])) {
+            return null;
+        }
+
+        return $responseData['paymentMethods'];
+    }
+
+
     public function cancelExpiredOrders()
     {
-        // Obtén el tiempo de espera desde la configuración del módulo
         $waiting_period = (int)Configuration::get('KHIPU_MINUTES_TIMEOUT');
-
-        // Calcula la fecha límite para cancelar los pedidos
         $expiration_date = date('Y-m-d H:i:00', strtotime("-$waiting_period minutes"));
 
-        // Consulta los pedidos que están en estado "Esperando Pago" y han expirado
         $result = Db::getInstance()->executeS(
             'SELECT `id_order` 
         FROM `' . _DB_PREFIX_ . 'orders` 
@@ -268,17 +255,14 @@ class KhipuPayment extends PaymentModule
                 $order_id = (int)$order_data['id_order'];
                 $order = new Order($order_id);
 
-                // Verifica si el pedido todavía está en estado "Esperando Pago"
                 if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
-                    // Actualiza el estado del pedido a "Cancelado"
                     $this->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
                 }
             }
         }
     }
 
-
-    public function getKhipuSimplifiedTransferPayment(Khipu\Model\PaymentMethodItem $paymentMethod)
+    public function getKhipuSimplifiedTransferPayment($paymentMethod)
     {
         $simplifiedTransfer = new PaymentOption();
         $simplifiedTransfer->setCallToActionText($this->l('Paga usando Khipu'))
@@ -286,12 +270,13 @@ class KhipuPayment extends PaymentModule
             ->setAdditionalInformation(
                 $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_simplified.tpl')
             )
-            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
+            ->setLogo($this->addMissingProtocol($paymentMethod['logo_url']));
 
         return $simplifiedTransfer;
     }
 
-    public function getKhipuNormalTransferPayment(Khipu\Model\PaymentMethodItem $paymentMethod)
+
+    public function getKhipuNormalTransferPayment($paymentMethod)
     {
         $normalTransfer = new PaymentOption();
         $normalTransfer->setCallToActionText($this->l('Transferencia Normal'))
@@ -299,35 +284,32 @@ class KhipuPayment extends PaymentModule
             ->setAdditionalInformation(
                 $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_normal.tpl')
             )
-            ->setLogo($this->addMissingProtocol($paymentMethod->getLogoUrl()));
+            ->setLogo($this->addMissingProtocol($paymentMethod['logo_url']));
 
         return $normalTransfer;
     }
 
+
     public function getContent()
     {
-
-        if (Tools::getIsset('khipu_updateSettings')) {
+        if (Tools::isSubmit('khipu_updateSettings')) {
             Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
+            Configuration::updateValue('KHIPU_API_KEY', trim(Tools::getValue('apiKey')));
             Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
-
             if ((int)Tools::getValue('minutesTimeout') > 0) {
                 Configuration::updateValue('KHIPU_MINUTES_TIMEOUT', (int)Tools::getValue('minutesTimeout'));
             }
-
             $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
+            $this->apiKey = Configuration::get('KHIPU_API_KEY');
             $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
-
-            $this->minutesTimeout = (Configuration::get('KHIPU_MINUTES_TIMEOUT') ? Configuration::get(
-                'KHIPU_MINUTES_TIMEOUT'
-            ) : 360);
+            $this->minutesTimeout = Configuration::get('KHIPU_MINUTES_TIMEOUT');
         }
-
 
         $shopDomainSsl = Tools::getShopDomainSsl(true, true);
         $params = array(
             'post_url' => $_SERVER['REQUEST_URI'],
             'data_merchantid' => $this->merchantID,
+            'data_apiKey' => $this->apiKey,
             'data_secretcode' => $this->secretCode,
             'data_minutesTimeout' => $this->minutesTimeout,
             'version' => $this->version,
@@ -977,7 +959,7 @@ class KhipuPayment extends PaymentModule
 
                         $orderLanguage = new Language((int)$order->id_lang);
 
-                        if ($OrderState->send_email && Validate::isEmail($this->context->customer->email)) {
+                        if ($order_status->send_email && Validate::isEmail($this->context->customer->email)) {
                             Mail::Send(
                                 (int)$order->id_lang,
                                 'order_conf',
@@ -1059,5 +1041,4 @@ class KhipuPayment extends PaymentModule
 
         $history->add();
     }
-
 }

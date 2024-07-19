@@ -17,12 +17,10 @@
 
 class KhipuPostback
 {
-
-    const PLUGIN_VERSION = '4.1';
+    const PLUGIN_VERSION = '4.3';
 
     public function init()
     {
-
         define('_PS_ADMIN_DIR_', getcwd());
 
         // Load Presta Configuration
@@ -36,69 +34,44 @@ class KhipuPostback
     private function handlePOST()
     {
         http_response_code(400);
-        $configuration = new Khipu\Configuration();
-        $configuration->setSecret(Configuration::get('KHIPU_SECRETCODE'));
-        $configuration->setReceiverId(Configuration::get('KHIPU_MERCHANTID'));
-        $configuration->setPlatform('prestashop-khipu', KhipuPostback::PLUGIN_VERSION);
 
-        $client = new Khipu\ApiClient($configuration);
-        $payments = new Khipu\Client\PaymentsApi($client);
+        $secret = Configuration::get('KHIPU_SECRETCODE');
+        $raw_post = file_get_contents('php://input');
+        $signature = $_SERVER['HTTP_X_KHIPU_SIGNATURE'];
 
-        if (!Tools::getValue('notification_token')){
-            exit('No notification_token');
+        if (!$this->verifySignature($raw_post, $signature, $secret)) {
+            exit('Invalid signature');
         }
 
-        if (!Tools::getValue('api_version')){
-            exit('No apiVersion');
+        $paymentResponse = json_decode($raw_post, true);
+
+        if (!$paymentResponse) {
+            exit('Invalid payment response');
         }
 
-        if (Tools::getValue('api_version') != '1.3'){
-            exit('Wrong apiVersion, only 1.3 allowed');
-        }
-
-        try {
-            $paymentResponse = $payments->paymentsGet(Tools::getValue('notification_token'));
-        } catch(\Khipu\ApiException $exception) {
-            exit(print_r($exception->getResponseObject(), TRUE));
-            error_log(print_r($exception->getResponseObject(), TRUE));
-            return;
-        }
-
-
-        $orders = Order::getByReference($paymentResponse->getTransactionId());
+        $orders = Order::getByReference($paymentResponse['transaction_id']);
 
         if (count($orders) == 0) {
-            exit('No order for reference '. $paymentResponse->getTransactionId());
+            exit('No order for reference '. $paymentResponse['transaction_id']);
         }
 
         if (count($orders) > 1) {
-            exit('More than one order with the same reference '. $paymentResponse->getTransactionId());
+            exit('More than one order with the same reference '. $paymentResponse['transaction_id']);
         }
 
         $order = $orders[0];
-
-
         $cart = Cart::getCartByOrderId($order->id);
-
-
         $currency = Currency::getCurrencyInstance($cart->id_currency);
+        $precision = ($currency->iso_code == 'CLP') ? 0 : 2;
 
-        $precision = 0;
-        if($currency->iso_code =='CLP'){
-            $precision = 0;
-        } else if ($currency->iso_code == 'ARS' OR $currency->iso_code == 'EUR'){
-            $precision = 2;
-        }
+        if ($paymentResponse['receiver_id'] == Configuration::get('KHIPU_MERCHANTID') &&
+            Tools::ps_round((float)($order->total_paid_tax_incl), $precision) == $paymentResponse['amount']) {
 
-        if (Configuration::get('KHIPU_MERCHANTID') == $paymentResponse->getReceiverId()
-            && $paymentResponse->getStatus() == 'done'
-            && Tools::ps_round((float)($order->total_paid_tax_incl), $precision) == $paymentResponse->getAmount()
-        ) {
-            if($order->current_state != (int)Configuration::get('PS_OS_PAYMENT')) {
+            if ($order->current_state != (int)Configuration::get('PS_OS_PAYMENT')) {
                 $order->setCurrentState((int)Configuration::get('PS_OS_PAYMENT'));
                 $order_payment_collection = $order->getOrderPaymentCollection();
                 $order_payment = $order_payment_collection[0];
-                $order_payment->transaction_id = $paymentResponse->getPaymentId();
+                $order_payment->transaction_id = $paymentResponse['payment_id'];
                 $order_payment->update();
             }
             http_response_code(200);
@@ -107,14 +80,29 @@ class KhipuPostback
             exit('Notification rejected [ReceiverId: '
                 . Configuration::get('KHIPU_MERCHANTID')
                 . '] [Payment ReceiverId: '
-                . $paymentResponse->getReceiverId()
-                .'] [Payment Status: '
-                . $paymentResponse->getStatus()
+                . $paymentResponse['receiver_id']
                 . '] [Order Total: '
                 . Tools::ps_round((float)($order->total_paid_tax_incl), $precision)
-                . '] [Payment Amount: '. $paymentResponse->getAmount()
+                . '] [Payment Amount: '. $paymentResponse['amount']
                 .']');
         }
+    }
 
+    private function verifySignature($raw_post, $signature, $secret)
+    {
+        $signature_parts = explode(',', $signature,2);
+        foreach ($signature_parts as $part) {
+            [$key, $value] = explode('=', $part,2);
+            if ($key === 't') {
+                $t_value = $value;
+            } elseif ($key === 's') {
+                $s_value = $value;
+            }
+        }
+        $to_hash = $t_value . '.' . $raw_post;
+        $hash_bytes = hash_hmac('sha256', $to_hash, $secret, true);
+        $hmac_base64 = base64_encode($hash_bytes);
+
+        return hash_equals($hmac_base64, $s_value);
     }
 }

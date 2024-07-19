@@ -45,14 +45,19 @@
             <form action="{$post_url|escape:'htmlall':'UTF-8'}" method="post" class="form-horizontal">
                 <fieldset class="form-group">
                     <div class="form-group row">
-                        <label for="merchantID"
-                               class="col-sm-3 col-form-label">{l s='ID Cobrador' mod='khipupayment'}</label>
+                        <label for="apiKey" class="col-sm-3 col-form-label">{l s='API Key' mod='khipupayment'}</label>
+                        <div class="col-sm-9">
+                            <input type="text" name="apiKey" class="form-control" id="apiKey"
+                                   value="{$data_apiKey|escape:'htmlall':'UTF-8'}"/>
+                        </div>
+                    </div>
+                    <div class="form-group row">
+                        <label for="merchantID" class="col-sm-3 col-form-label">{l s='ID Cobrador' mod='khipupayment'}</label>
                         <div class="col-sm-9">
                             <input type="text" id="merchantID" class="form-control" name="merchantID"
                                    value="{$data_merchantid|escape:'htmlall':'UTF-8'}"/>
                         </div>
                     </div>
-
                     <div class="form-group row">
                         <label for="secretCode"
                                class="col-sm-3 col-form-label">{l s='Llave secreta' mod='khipupayment'}</label>
@@ -62,7 +67,6 @@
                         </div>
                     </div>
 
-
                     <div class="form-group row">
                         <label for="minutesTimeout"
                                class="col-sm-3 col-form-label">{l s='Minutos para realizar el pago (pasado este tiempo la orden se cancela y se recupera el stock)' mod='khipupayment'}</label>
@@ -71,7 +75,6 @@
                                    value="{$data_minutesTimeout|escape:'htmlall':'UTF-8'}"/>
                         </div>
                     </div>
-
 
                     <input type="submit" name="khipu_updateSettings" class="btn btn-primary"
                            value="{l s='Guardar' mod='khipupayment'}"/>
