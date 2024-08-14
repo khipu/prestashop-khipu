@@ -17,8 +17,6 @@
 
 class KhipuPostback
 {
-    const PLUGIN_VERSION = '4.3';
-
     public function init()
     {
         define('_PS_ADMIN_DIR_', getcwd());

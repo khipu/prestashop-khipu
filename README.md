@@ -8,6 +8,11 @@ Antes de comenzar, se debe contar con lo siquiente:
 - El archivo khipupayment.zip, el cual contiene el plugin khipu para Prestashop.
 - requiere tener habilido cURL en el servidor.
 
-[![Tutorial integración khipu en Prestashop](http://img.youtube.com/vi/l2is1lwSd_4/0.jpg)](https://www.youtube.com/watch?v=l2is1lwSd_4 "Tutorial integración khipu en Prestashop")
+1. Instala el módulo khipupayment.zip
+2. Ingresa a la configuración del módulo
+3. Ingresa a tu cuenta de cobro Khipu, allí en "Opciones de la cuenta=>Para integrar Khipu en tu sitio WEB, encontrarás el Id de tu cuenta de cobro y la llave secreta. Mas abajo, podrás crear tu nueva Api Key."
+4. Completa el Id de la Cuenta, la Llave Secreta y la Api Key.
+5. Configura el tiempo, en minutos, que deseas esperar el pago antes de cancelarlo
+6. Guarda la configuración.
 
 Nota: Si buscas el repositorio de khipu para Prestashop 1.5 y 1.6, fue movido acá: https://github.com/khipu/prestashop1.6-khipu

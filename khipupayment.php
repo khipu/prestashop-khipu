@@ -24,6 +24,10 @@ if (!defined('_PS_VERSION_')) {
 
 class KhipuPayment extends PaymentModule
 {
+
+    const PLUGIN_VERSION = '4.3.1';
+    const API_VERSION = '3.0';
+
     public $details;
     public $owner;
     public $address;
@@ -35,8 +39,8 @@ class KhipuPayment extends PaymentModule
     {
         $this->name = 'khipupayment';
         $this->tab = 'payments_gateways';
-        $this->version = '4.3';
-        $this->apiVersion = '3.0';
+        $this->version = self::PLUGIN_VERSION;
+        $this->apiVersion = self::API_VERSION;
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
         $this->author = 'Khipu SpA';
         $this->controllers = array('validate');
@@ -220,6 +224,7 @@ class KhipuPayment extends PaymentModule
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_USERAGENT, "khipu-api-php-client/" . KhipuPayment::API_VERSION . "|prestashop-khipu/" . KhipuPayment::PLUGIN_VERSION);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);

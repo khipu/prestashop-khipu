@@ -110,6 +110,7 @@ class KhipuPaymentSimplifiedModuleFrontController extends ModuleFrontController
             'Content-Type: application/json',
             'x-api-key: ' . Configuration::get('KHIPU_API_KEY')
         ]);
+        curl_setopt($ch, CURLOPT_USERAGENT, "khipu-api-php-client/" . KhipuPayment::API_VERSION . "|prestashop-khipu/" . KhipuPayment::PLUGIN_VERSION);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
 
