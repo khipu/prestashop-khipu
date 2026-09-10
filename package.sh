@@ -14,7 +14,9 @@ rm -rf \
     khipupayment/*.iml \
     khipupayment/.DS_Store \
     khipupayment/package.sh \
-    khipupayment/composer.phar
+    khipupayment/composer.phar \
+    khipupayment/tests \
+    khipupayment/phpunit.xml
 zip -r khipupayment.zip khipupayment
 cp khipupayment.zip ../prestashop-khipu/dist
 cd ../prestashop-khipu
