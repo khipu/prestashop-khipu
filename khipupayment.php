@@ -22,11 +22,18 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+require_once dirname(__FILE__) . '/classes/KhipuVersion.php';
+require_once dirname(__FILE__) . '/classes/KhipuRefundRules.php';
+require_once dirname(__FILE__) . '/classes/KhipuRefundService.php';
+require_once dirname(__FILE__) . '/classes/KhipuRefund.php';
+
 class KhipuPayment extends PaymentModule
 {
 
-    const PLUGIN_VERSION = '4.3.1';
-    const API_VERSION = '3.0';
+    // Fuente única en KhipuVersion: la comparten con KhipuRefundService, que
+    // no puede ver esta clase porque se prueba fuera de PrestaShop.
+    const PLUGIN_VERSION = KhipuVersion::PLUGIN;
+    const API_VERSION = KhipuVersion::API;
 
     public $details;
     public $owner;
@@ -66,11 +73,49 @@ class KhipuPayment extends PaymentModule
 
     public function install()
     {
-        if (parent::install() && $this->registerHook('paymentOptions') && $this->registerHook('paymentReturn')) {
-            $this->addOrderStates();
+        if (!parent::install()
+            || !$this->registerHook('paymentOptions')
+            || !$this->registerHook('paymentReturn')
+            || !$this->registerHook('displayAdminOrder')
+            || !$this->registerHook('displayAdminOrderMainBottom')
+        ) {
+            return false;
+        }
+
+        if (!KhipuRefund::installTable() || !$this->installRefundTab()) {
+            return false;
+        }
+
+        // Por defecto la reversa se refleja en la contabilidad: es lo que hacen
+        // los demás plugins de Khipu (WooCommerce, Magento, VTEX).
+        Configuration::updateValue('KHIPU_REFUND_ORDER_STATE', 'refund');
+
+        $this->addOrderStates();
+
+        return true;
+    }
+
+    /**
+     * Tab oculto (id_parent = -1) que da entidad al controlador de admin de la
+     * reversa. Sin tab, PrestaShop no genera token ni resuelve permisos.
+     */
+    private function installRefundTab()
+    {
+        if ((int) Tab::getIdFromClassName('AdminKhipuRefund') > 0) {
             return true;
         }
-        return false;
+
+        $tab = new Tab();
+        $tab->class_name = 'AdminKhipuRefund';
+        $tab->module = $this->name;
+        $tab->id_parent = -1;
+        $tab->active = 1;
+
+        foreach (Language::getLanguages(false) as $lang) {
+            $tab->name[(int) $lang['id_lang']] = 'Reversa Khipu';
+        }
+
+        return (bool) $tab->add();
     }
 
     private function addOrderStates()
@@ -104,27 +149,350 @@ class KhipuPayment extends PaymentModule
         $orderState->hydrate($orderStateData);
         $orderState->add();
         Configuration::updateValue('PS_OS_KHIPU_OPEN', (int) $orderState->id);
-        $orderState->updateImg(dirname(__FILE__) . '/views/img/status.gif');
     }
 
     public function uninstall()
     {
         try {
-            $success = true;
-            $success &= Configuration::deleteByName('KHIPU_API_KEY');
-            $success &= Configuration::deleteByName('KHIPU_SECRETCODE');
-            $success &= $this->unregisterHook('paymentOptions');
-            $success &= $this->unregisterHook('paymentReturn');
+            $success = Configuration::deleteByName('KHIPU_API_KEY')
+                && Configuration::deleteByName('KHIPU_SECRETCODE')
+                && Configuration::deleteByName('KHIPU_MERCHANTID')
+                && Configuration::deleteByName('KHIPU_MINUTES_TIMEOUT')
+                && Configuration::deleteByName('KHIPU_REFUND_ORDER_STATE')
+                && Configuration::deleteByName('KHIPU_WALLET_CACHE')
+                && $this->unregisterHook('paymentOptions')
+                && $this->unregisterHook('paymentReturn')
+                && $this->unregisterHook('displayAdminOrder')
+                && $this->unregisterHook('displayAdminOrderMainBottom');
 
-            if ($success) {
-                return parent::uninstall();
-            } else {
+            // Los nonces son una fila por empleado y no tienen nombre fijo.
+            Db::getInstance()->execute(
+                'DELETE FROM `' . _DB_PREFIX_ . 'configuration` WHERE `name` LIKE "KHIPU_REFUND_NONCE_%"'
+            );
+
+            $idTab = (int) Tab::getIdFromClassName('AdminKhipuRefund');
+            if ($idTab > 0) {
+                $tab = new Tab($idTab);
+                $tab->delete();
+            }
+
+            // La tabla khipu_refund NO se borra: es el único registro que existe
+            // de las reversas hechas, y la API de Khipu no permite reconstruirlo.
+
+            if (!$success) {
                 throw new Exception('Error during uninstallation: not all actions were successful.');
             }
+
+            return parent::uninstall();
         } catch (Exception $e) {
-            PrestaShopLogger::addLog('Error during uninstallation: ' . $e->getMessage(), 3, null, 'Module', (int)$this->id, true);
+            PrestaShopLogger::addLog('Error during uninstallation: ' . $e->getMessage(), 3, null, 'Module', (int) $this->id, true);
+
             return false;
         }
+    }
+
+    /**
+     * Estado de la billetera de reversas, cacheado 30 segundos en Configuration.
+     *
+     * Sin caché sería una llamada HTTP a Khipu en cada carga de una ficha de
+     * pedido — el mismo vicio que el módulo ya tiene en el checkout.
+     *
+     * Son cuatro estados y hay que distinguirlos: `configured` separa "todavía
+     * no pusiste las credenciales" de "tu cuenta no tiene el flag". Colapsarlos
+     * manda al comercio a pedirle a soporte una billetera que quizá ya tiene.
+     *
+     * @param bool $force ignora la caché
+     *
+     * @return array
+     */
+    public function getWalletState($force = false)
+    {
+        // 30 s: la pantalla de configuración se recarga seguido y no conviene una
+        // llamada HTTP por render.
+        //
+        // El estado "flag apagado" SÍ entra en la caché, a diferencia de lo que
+        // pide el estándar de textos. Ese estándar prohíbe cachearlo para que el
+        // comercio lo vea cambiar apenas Khipu le dé el flag — objetivo que acá
+        // ya se cumple por otra vía: getContent() consulta con $force = true, así
+        // que la pantalla donde vive el panel de billetera nunca lee la caché.
+        // Dejarlo sin cachear solo lograría una llamada HTTP sincrónica a Khipu
+        // en cada carga de ficha de pedido, con su timeout de 10 s colgando del
+        // render, justo en las tiendas que tienen el flag apagado.
+        $ttl = 30;
+        $now = time();
+
+        if (!$force) {
+            $cached = json_decode((string) Configuration::get('KHIPU_WALLET_CACHE'), true);
+            if (is_array($cached) && isset($cached['checked_at']) && ($now - (int) $cached['checked_at']) < $ttl) {
+                // La caché solo se escribe con credenciales puestas, así que una
+                // entrada vieja sin la clave es de una instalación configurada.
+                if (!isset($cached['configured'])) {
+                    $cached['configured'] = true;
+                }
+
+                // Una caché de otra credencial no sirve: al cambiar de cuenta
+                // la ficha de pedido mostraría la billetera de la anterior, y
+                // con ella el formulario de reversa abierto o escondido al
+                // revés. El guardado de ajustes ya la borra; esto cubre los
+                // cambios que no pasan por ahí (base de datos, multitienda).
+                $fingerprint = $this->apiKey ? md5($this->apiKey) : '';
+                if (isset($cached['key']) && $cached['key'] === $fingerprint) {
+                    return $cached;
+                }
+            }
+        }
+
+        $state = array(
+            // Huella de la credencial, para que la caché de una cuenta no se le
+            // sirva a otra. No expone nada: la key está en claro dos filas más
+            // allá; esto sólo detecta el cambio.
+            'key' => $this->apiKey ? md5($this->apiKey) : '',
+            'configured' => (bool) $this->apiKey,
+            'enabled' => false,
+            'reachable' => false,
+            'balance' => null,
+            'currency' => '',
+            'add_funds_url' => '',
+            'checked_at' => $now,
+        );
+
+        if (!$this->apiKey) {
+            return $state;
+        }
+
+        $service = new KhipuRefundService($this->apiKey);
+        $result = $service->getWalletBalance();
+
+        if ($result['ok']) {
+            // Responder con saldo, aunque sea 0, significa habilitada.
+            $state['enabled'] = true;
+            $state['reachable'] = true;
+            $state['balance'] = isset($result['data']['balance']) ? (float) $result['data']['balance'] : 0.0;
+            $state['currency'] = isset($result['data']['currency']) ? (string) $result['data']['currency'] : '';
+            $addFundsUrl = isset($result['data']['add_funds_url']) ? (string) $result['data']['add_funds_url'] : '';
+            // Solo https: escapar el HTML no impediría un `javascript:` en el href.
+            $state['add_funds_url'] = (0 === strpos($addFundsUrl, 'https://')) ? $addFundsUrl : '';
+        } elseif (KhipuRefundRules::isWalletDisabled($result['errors'])) {
+            // Flag apagado: es el ÚNICO caso que esconde la reversa.
+            $state['enabled'] = false;
+            $state['reachable'] = true;
+        } else {
+            // Red caída, timeout, 5xx… No se esconde el panel: un problema
+            // transitorio dejaría al admin sin entender por qué desapareció.
+            $state['enabled'] = true;
+            $state['reachable'] = false;
+        }
+
+        Configuration::updateValue('KHIPU_WALLET_CACHE', json_encode($state));
+
+        return $state;
+    }
+
+    /**
+     * Clases CSS del panel según el tema del back-office.
+     *
+     * La ficha de pedido se migró a Symfony en 1.7.7 y con ella a Bootstrap 4
+     * (`card`, `float-right`, `form-text`). Antes era la página legacy con
+     * Bootstrap 3 (`panel`, `pull-right`, `help-block`). Son juegos de nombres
+     * disjuntos: usar los de una versión en la otra no rompe nada, solo deja el
+     * bloque sin estilo, que es peor que feo — un panel que mueve dinero y
+     * parece a medio cargar no inspira confianza.
+     *
+     * Va en el módulo y no en la plantilla para que el marcado quede en un solo
+     * sitio. Si algún día el mínimo soportado sube a 1.7.7, esto se borra y las
+     * clases vuelven a la plantilla.
+     *
+     * @return array
+     */
+    public static function adminOrderClasses()
+    {
+        if (version_compare(_PS_VERSION_, '1.7.7.0', '<')) {
+            return array(
+                'card' => 'panel',
+                'header' => 'panel-heading',
+                'body' => 'panel-body',
+                'footer' => 'panel-footer',
+                'right' => 'pull-right',
+                'help' => 'help-block',
+                'btn_secondary' => 'btn-default',
+            );
+        }
+
+        return array(
+            'card' => 'card mt-2',
+            'header' => 'card-header',
+            'body' => 'card-body',
+            'footer' => 'card-footer',
+            'right' => 'float-right',
+            'help' => 'form-text text-muted',
+            'btn_secondary' => 'btn-outline-secondary',
+        );
+    }
+
+    /**
+     * Respaldo para 1.7.0–1.7.6, donde displayAdminOrderMainBottom no existe.
+     *
+     * En 1.7.7+ los dos hooks están registrados y este devuelve vacío, o el
+     * panel saldría dos veces en la misma ficha.
+     *
+     * @return string
+     */
+    public function hookDisplayAdminOrder($params)
+    {
+        if (version_compare(_PS_VERSION_, '1.7.7.0', '>=')) {
+            return '';
+        }
+
+        return $this->hookDisplayAdminOrderMainBottom($params);
+    }
+
+    /**
+     * Nonce de un solo uso para el formulario de reversa.
+     *
+     * Se genera solo si no hay uno vigente: rotarlo en cada render invalidaría
+     * el formulario ya abierto en otra pestaña. El controlador lo consume al
+     * usarlo, y el render siguiente crea uno nuevo.
+     *
+     * @return string
+     */
+    public function getRefundNonce()
+    {
+        $name = self::refundNonceName((int) $this->context->employee->id);
+        $nonce = (string) Configuration::get($name);
+
+        if ('' === $nonce) {
+            $nonce = md5(uniqid((string) rand(), true));
+            Configuration::updateValue($name, $nonce);
+        }
+
+        return $nonce;
+    }
+
+    /**
+     * Dónde vive el nonce de reversa de un empleado.
+     *
+     * En Configuration y no en la cookie: la cookie se lee de la petición, así
+     * que dos envíos simultáneos traen el mismo valor y los dos lo dan por
+     * bueno — borrarla sólo afecta a peticiones posteriores. Con una fila en
+     * base de datos el consumo es un DELETE condicionado por valor, que MySQL
+     * serializa: de dos peticiones a la vez, exactamente una afecta una fila.
+     *
+     * Importa porque Khipu no deduplica: dos envíos que pasan son dos
+     * devoluciones de dinero.
+     *
+     * @param int $idEmployee
+     *
+     * @return string
+     */
+    public static function refundNonceName($idEmployee)
+    {
+        return 'KHIPU_REFUND_NONCE_' . (int) $idEmployee;
+    }
+
+    /**
+     * Panel de reversa en la ficha del pedido del back-office.
+     *
+     * Se cuelga de displayAdminOrderMainBottom, que cae en la columna principal
+     * justo después del bloque «Pago» y antes de «Fuentes». El genérico
+     * displayAdminOrder se pinta al final de la página, suelto bajo todo.
+     *
+     * Ese hook llegó en 1.7.7 y el módulo declara soportar desde 1.7.0, así que
+     * los dos quedan registrados y hookDisplayAdminOrder() actúa de respaldo.
+     * Registrar uno inexistente no rompe la instalación: Hook::registerHook()
+     * crea la fila si le falta, y en las versiones viejas queda huérfana.
+     *
+     * Este hook SOLO lee y dibuja. No muta nada.
+     *
+     * @return string
+     */
+    public function hookDisplayAdminOrderMainBottom($params)
+    {
+        if (!$this->active || !isset($params['id_order'])) {
+            return '';
+        }
+
+        $order = new Order((int) $params['id_order']);
+        if (!Validate::isLoadedObject($order) || $order->module !== $this->name) {
+            return '';
+        }
+
+        $paymentRow = KhipuRefund::getPaymentRowForOrder($order);
+        if (!$paymentRow) {
+            return ''; // sin payment_id de Khipu no hay nada que reversar
+        }
+
+        $wallet = $this->getWalletState();
+
+        if (!$wallet['enabled']) {
+            // La plantilla lee $khipu_wallet en su primer {if}: hay que asignarlo
+            // también en esta rama, o Smarty se encuentra la variable sin definir.
+            $this->context->smarty->assign(array(
+                'khipu_wallet' => $wallet,
+                'khipu_notice' => $this->pullRefundNotice(),
+                'khipu_cls' => self::adminOrderClasses(),
+            ));
+
+            return $this->display(__FILE__, 'views/templates/admin/order_refund_panel.tpl');
+        }
+
+        $remaining = KhipuRefund::getRemainingForOrder((int) $order->id, $paymentRow['amount']);
+        $currency = new Currency((int) $order->id_currency);
+
+        $history = array();
+        foreach (KhipuRefund::getHistoryForOrder((int) $order->id) as $row) {
+            $history[] = array(
+                'date_add' => $row['date_add'],
+                'type' => ($row['type'] === KhipuRefundRules::TYPE_FULL) ? $this->l('Total') : $this->l('Parcial'),
+                'refunded_amount' => Tools::displayPrice((float) $row['refunded_amount'], $currency),
+                'remaining' => Tools::displayPrice((float) $row['remaining'], $currency),
+            );
+        }
+
+        $this->context->smarty->assign(array(
+            'khipu_wallet' => $wallet,
+            'khipu_wallet_balance_display' => (null === $wallet['balance'])
+                ? '' : Tools::displayPrice((float) $wallet['balance'], $currency),
+            'khipu_remaining' => $remaining,
+            'khipu_remaining_display' => Tools::displayPrice($remaining, $currency),
+            // Para el texto del diálogo de confirmación, donde el monto lo
+            // escribe el operador y hay que darle formato en el navegador.
+            'khipu_currency_sign' => $currency->sign,
+            'khipu_cls' => self::adminOrderClasses(),
+            'khipu_can_refund' => ($remaining > 0),
+            'khipu_history' => $history,
+            'khipu_id_order' => (int) $order->id,
+            'khipu_action_url' => $this->context->link->getAdminLink('AdminKhipuRefund'),
+            'khipu_notice' => $this->pullRefundNotice(),
+            'khipu_nonce' => $this->getRefundNonce(),
+        ));
+
+        return $this->display(__FILE__, 'views/templates/admin/order_refund_panel.tpl');
+    }
+
+    /**
+     * Lee y consume el aviso que dejó el controlador antes de redirigir.
+     *
+     * Viaja en la cookie del empleado y no en la URL: los mensajes de error de
+     * Khipu son texto libre y no tienen por qué quedar en el historial del navegador.
+     *
+     * @return array|false array('status' => 'success'|'error', 'text' => string, 'recharge_url' => string)
+     */
+    private function pullRefundNotice()
+    {
+        $raw = $this->context->cookie->__isset('khipu_refund_notice')
+            ? (string) $this->context->cookie->__get('khipu_refund_notice')
+            : '';
+
+        if ('' === $raw) {
+            return false;
+        }
+
+        $this->context->cookie->__set('khipu_refund_notice', '');
+        $this->context->cookie->write();
+
+        $notice = json_decode($raw, true);
+
+        return is_array($notice) ? $notice : false;
     }
 
     public function hookPaymentReturn($params)
@@ -298,12 +666,31 @@ class KhipuPayment extends PaymentModule
     public function getContent()
     {
         if (Tools::isSubmit('khipu_updateSettings')) {
-            Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
-            Configuration::updateValue('KHIPU_API_KEY', trim(Tools::getValue('apiKey')));
-            Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
-            if ((int)Tools::getValue('minutesTimeout') > 0) {
-                Configuration::updateValue('KHIPU_MINUTES_TIMEOUT', (int)Tools::getValue('minutesTimeout'));
+            // Los ajustes están partidos en dos paneles y cada formulario manda
+            // solo sus propios campos. Hay que comprobar presencia antes de
+            // escribir: Tools::getValue() devuelve false para un campo ausente y
+            // trim(false) es '', así que guardar un panel borraría el otro.
+            if (Tools::getIsset('merchantID')) {
+                Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
             }
+            if (Tools::getIsset('apiKey')) {
+                Configuration::updateValue('KHIPU_API_KEY', trim(Tools::getValue('apiKey')));
+            }
+            if (Tools::getIsset('secretCode')) {
+                Configuration::updateValue('KHIPU_SECRETCODE', trim(Tools::getValue('secretCode')));
+            }
+            if ((int) Tools::getValue('minutesTimeout') > 0) {
+                Configuration::updateValue('KHIPU_MINUTES_TIMEOUT', (int) Tools::getValue('minutesTimeout'));
+            }
+            if (Tools::getIsset('refundOrderState')) {
+                Configuration::updateValue(
+                    'KHIPU_REFUND_ORDER_STATE',
+                    (Tools::getValue('refundOrderState') === 'refund') ? 'refund' : ''
+                );
+            }
+            // La caché de la billetera es de la credencial anterior.
+            Configuration::deleteByName('KHIPU_WALLET_CACHE');
+
             $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
             $this->apiKey = Configuration::get('KHIPU_API_KEY');
             $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
@@ -311,12 +698,28 @@ class KhipuPayment extends PaymentModule
         }
 
         $shopDomainSsl = Tools::getShopDomainSsl(true, true);
+
+        $wallet = $this->getWalletState(true);
+        $walletBalanceDisplay = '';
+        if (null !== $wallet['balance']) {
+            $idCurrency = ('' !== $wallet['currency'])
+                ? (int) Currency::getIdByIsoCode($wallet['currency'])
+                : 0;
+            if (!$idCurrency) {
+                $idCurrency = (int) Configuration::get('PS_CURRENCY_DEFAULT');
+            }
+            $walletBalanceDisplay = Tools::displayPrice((float) $wallet['balance'], new Currency($idCurrency));
+        }
+
         $params = array(
             'post_url' => $_SERVER['REQUEST_URI'],
             'data_merchantid' => $this->merchantID,
             'data_apiKey' => $this->apiKey,
             'data_secretcode' => $this->secretCode,
             'data_minutesTimeout' => $this->minutesTimeout,
+            'data_refundOrderState' => Configuration::get('KHIPU_REFUND_ORDER_STATE'),
+            'wallet' => $wallet,
+            'wallet_balance_display' => $walletBalanceDisplay,
             'version' => $this->version,
             'api_version' => $this->apiVersion,
             'img_header' => $shopDomainSsl . __PS_BASE_URI__ . "modules/{$this->name}/logo.png"

@@ -3,3 +3,5 @@ composer.phar
 .DS_Store
 dist/
 *.iml
+tests/phpunit-*.phar
+tests/.phpunit.cache
