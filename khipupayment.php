@@ -512,7 +512,7 @@ class KhipuPayment extends PaymentModule
                     $cartContent[] = array(
                         'name' => $product['product_name'],
                         'quantity' => $product['product_quantity'],
-                        'price' => Tools::displayPrice($product['product_price'], $order->id_currency),
+                        'price' => Tools::displayPrice($product['product_price'], (int) $order->id_currency),
                     );
                 }
 
@@ -525,7 +525,7 @@ class KhipuPayment extends PaymentModule
                 $this->context->smarty->assign(array(
                     'status' => 'ok',
                     'id_order' => $order->reference,
-                    'total_to_pay' => Tools::displayPrice($order->total_paid, $order->id_currency),
+                    'total_to_pay' => Tools::displayPrice($order->total_paid, (int) $order->id_currency),
                     'cart_content' => $cartContent,
                     'customer_data' => $customerData,
                 ));
