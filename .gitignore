@@ -1,5 +1,6 @@
 .idea
 composer.phar
+vendor/
 .DS_Store
 dist/
 *.iml

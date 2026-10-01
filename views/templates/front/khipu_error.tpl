@@ -36,3 +36,7 @@
         </li>
     {/if}
 </ul>
+
+{if isset($error.retry_url)}
+    <p><a class="btn btn-primary" href="{$error.retry_url}">{l s='Volver a intentar' mod='khipupayment'}</a></p>
+{/if}

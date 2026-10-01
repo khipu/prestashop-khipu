@@ -1,0 +1,83 @@
+# Tienda PrestaShop local para probar el módulo.
+#
+#   cd dev && docker compose up -d
+#
+# La primera vez tarda varios minutos: descarga las imágenes e instala la
+# tienda. El módulo se monta desde el repositorio, así que editar un archivo se
+# refleja al recargar (salvo plantillas .tpl, que necesitan borrar la caché).
+#
+# Para probar sobre otra versión de PrestaShop, borra la tienda y vuelve a
+# levantarla con otra etiqueta:
+#
+#   docker compose down -v
+#   PS_TAG=1.7.8-apache docker compose up -d
+#
+# Etiquetas útiles: 8.1-apache (por defecto), 8.2-apache, 1.7.8-apache.
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: prestashop
+      MYSQL_DATABASE: prestashop
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pprestashop"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - db:/var/lib/mysql
+
+  prestashop:
+    image: prestashop/prestashop:${PS_TAG:-8.1-apache}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      DB_SERVER: db
+      DB_NAME: prestashop
+      DB_USER: root
+      DB_PASSWD: prestashop
+      PS_DOMAIN: localhost:8080
+      PS_INSTALL_AUTO: 1
+      PS_ERASE_DB: 0
+      # Modo desarrollo: los errores de PHP salen en pantalla en vez de quedar
+      # en una página en blanco.
+      PS_DEV_MODE: 1
+      PS_FOLDER_ADMIN: admin-khipu
+      PS_LANGUAGE: es
+      PS_COUNTRY: cl
+      ADMIN_MAIL: admin@khipu.local
+      ADMIN_PASSWD: khipu1234
+    volumes:
+      - html:/var/www/html
+      # El repositorio ES el módulo: la carpeta tiene que llamarse khipupayment
+      # dentro de la tienda, que es como PrestaShop lo identifica.
+      - ../:/var/www/html/modules/khipupayment
+      # Tapa el vendor/ del repositorio con un volumen vacío. PrestaShop carga
+      # solo el `modules/<nombre>/vendor/autoload.php` que encuentre, y el
+      # nuestro es de desarrollo: sus clases pueden tapar las de la propia
+      # tienda. Con PHPUnit 10 traía php-parser 5, que tapaba el 4 de la tienda
+      # y rompía el gestor de módulos entero con «Call to undefined method
+      # PhpParser\ParserFactory::create()»; con 8.5 ya no, pero la regla es la
+      # misma.
+      #
+      # Es la misma razón por la que package.sh excluye vendor/ del .zip.
+      - /var/www/html/modules/khipupayment/vendor
+
+  # Túnel público, necesario para que Khipu acepte crear el pago: rechaza un
+  # notify_url que apunte a localhost. Se levanta aparte con ./tunel.sh, que
+  # además le deja el dominio configurado a PrestaShop.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://prestashop:80
+    depends_on:
+      - prestashop
+    profiles:
+      - tunnel
+
+volumes:
+  db:
+  html:

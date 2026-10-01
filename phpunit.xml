@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
-         bootstrap="tests/bootstrap.php"
+<!--
+  Sin esquema ni opciones propias de una versión: la suite corre con PHPUnit
+  8.5, que es el que se instala en PHP 7.2+ (ver config.platform en
+  composer.json), y este archivo tiene que servirle igual a quien use otro.
+-->
+<phpunit bootstrap="tests/bootstrap.php"
          colors="true"
-         cacheDirectory="tests/.phpunit.cache">
+         cacheResult="false">
     <testsuites>
         <testsuite name="khipupayment">
             <directory>tests</directory>

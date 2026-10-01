@@ -65,6 +65,27 @@ class KhipuRefundRulesTest extends TestCase
         $this->assertIsString(KhipuRefundRules::validateAmount(KhipuRefundRules::TYPE_PARTIAL, '-5', 200.0));
     }
 
+    /**
+     * En pesos chilenos Khipu cobra montos enteros (ver KhipuApi::amountPrecision()),
+     * así que una fracción no tiene de dónde devolverse.
+     */
+    public function testEnPesosChilenosUnaFraccionFalla()
+    {
+        $this->assertIsString(KhipuRefundRules::validateAmount(KhipuRefundRules::TYPE_PARTIAL, '50.5', 200.0, 0));
+    }
+
+    public function testEnPesosChilenosUnEnteroPasaAunqueTraigaCerosDecimales()
+    {
+        $this->assertTrue(KhipuRefundRules::validateAmount(KhipuRefundRules::TYPE_PARTIAL, '50', 200.0, 0));
+        $this->assertTrue(KhipuRefundRules::validateAmount(KhipuRefundRules::TYPE_PARTIAL, '50.00', 200.0, 0));
+    }
+
+    public function testConDosDecimalesUnTerceroFalla()
+    {
+        $this->assertTrue(KhipuRefundRules::validateAmount(KhipuRefundRules::TYPE_PARTIAL, '50.55', 200.0, 2));
+        $this->assertIsString(KhipuRefundRules::validateAmount(KhipuRefundRules::TYPE_PARTIAL, '50.555', 200.0, 2));
+    }
+
     public function testParcialConComaComoSeparadorFalla()
     {
         // Sin esta comprobación, (float)'50,5' daría 50.0 en silencio y se

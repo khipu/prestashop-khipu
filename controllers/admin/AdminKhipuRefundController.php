@@ -10,6 +10,7 @@
 // Las clases del módulo NO se autoloadean. `Module::getInstanceByName()` que
 // hace ModuleAdminController las cargaría de rebote al incluir khipupayment.php,
 // pero depender de ese efecto colateral es frágil: se piden explícitamente.
+require_once _PS_MODULE_DIR_ . 'khipupayment/classes/KhipuApi.php';
 require_once _PS_MODULE_DIR_ . 'khipupayment/classes/KhipuRefundRules.php';
 require_once _PS_MODULE_DIR_ . 'khipupayment/classes/KhipuRefundService.php';
 require_once _PS_MODULE_DIR_ . 'khipupayment/classes/KhipuRefund.php';
@@ -85,7 +86,8 @@ class AdminKhipuRefundController extends ModuleAdminController
 
         $remaining = KhipuRefund::getRemainingForOrder($idOrder, $paymentRow['amount']);
 
-        $validation = KhipuRefundRules::validateAmount($type, $amount, $remaining);
+        $decimals = KhipuApi::amountPrecision(Currency::getCurrencyInstance((int) $order->id_currency)->iso_code);
+        $validation = KhipuRefundRules::validateAmount($type, $amount, $remaining, $decimals);
         if (true !== $validation) {
             $this->redirectToOrder($idOrder, 'error', $validation);
 

@@ -23,6 +23,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 require_once dirname(__FILE__) . '/classes/KhipuVersion.php';
+require_once dirname(__FILE__) . '/classes/KhipuApi.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefundRules.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefundService.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefund.php';
@@ -39,6 +40,21 @@ class KhipuPayment extends PaymentModule
     public $owner;
     public $address;
     public $extra_mail_vars;
+
+    // Declaradas, no dinámicas: PHP 8.2 deprecó crear propiedades al vuelo y
+    // PrestaShop 8.1 corre sobre 8.2. Cada `$this->apiKey = …` del constructor
+    // dejaba una deprecación en el log de la tienda.
+    /** @var string */
+    public $apiVersion;
+    /** @var string */
+    public $merchantID;
+    /** @var string */
+    public $apiKey;
+    /** @var string */
+    public $secretCode;
+    /** @var int */
+    public $minutesTimeout;
+
     protected $_html = '';
     protected $_postErrors = array();
 
@@ -160,6 +176,8 @@ class KhipuPayment extends PaymentModule
                 && Configuration::deleteByName('KHIPU_MINUTES_TIMEOUT')
                 && Configuration::deleteByName('KHIPU_REFUND_ORDER_STATE')
                 && Configuration::deleteByName('KHIPU_WALLET_CACHE')
+                && Configuration::deleteByName('KHIPU_PAYMENT_METHODS_CACHE')
+                && Configuration::deleteByName('KHIPU_UNKNOWN_REF_LOGGED_AT')
                 && $this->unregisterHook('paymentOptions')
                 && $this->unregisterHook('paymentReturn')
                 && $this->unregisterHook('displayAdminOrder')
@@ -195,7 +213,7 @@ class KhipuPayment extends PaymentModule
      * Estado de la billetera de reversas, cacheado 30 segundos en Configuration.
      *
      * Sin caché sería una llamada HTTP a Khipu en cada carga de una ficha de
-     * pedido — el mismo vicio que el módulo ya tiene en el checkout.
+     * pedido.
      *
      * Son cuatro estados y hay que distinguirlos: `configured` separa "todavía
      * no pusiste las credenciales" de "tu cuenta no tiene el flag". Colapsarlos
@@ -218,42 +236,28 @@ class KhipuPayment extends PaymentModule
         // Dejarlo sin cachear solo lograría una llamada HTTP sincrónica a Khipu
         // en cada carga de ficha de pedido, con su timeout de 10 s colgando del
         // render, justo en las tiendas que tienen el flag apagado.
-        $ttl = 30;
-        $now = time();
+        //
+        // Una caché de otra credencial no sirve: al cambiar de cuenta la ficha
+        // de pedido mostraría la billetera de la anterior, y con ella el
+        // formulario de reversa abierto o escondido al revés. El guardado de
+        // ajustes ya la borra; la huella cubre los cambios que no pasan por ahí
+        // (base de datos, multitienda). El saldo depende solo de la API Key.
+        $fingerprint = $this->apiKey ? md5($this->apiKey) : '';
 
         if (!$force) {
-            $cached = json_decode((string) Configuration::get('KHIPU_WALLET_CACHE'), true);
-            if (is_array($cached) && isset($cached['checked_at']) && ($now - (int) $cached['checked_at']) < $ttl) {
-                // La caché solo se escribe con credenciales puestas, así que una
-                // entrada vieja sin la clave es de una instalación configurada.
-                if (!isset($cached['configured'])) {
-                    $cached['configured'] = true;
-                }
-
-                // Una caché de otra credencial no sirve: al cambiar de cuenta
-                // la ficha de pedido mostraría la billetera de la anterior, y
-                // con ella el formulario de reversa abierto o escondido al
-                // revés. El guardado de ajustes ya la borra; esto cubre los
-                // cambios que no pasan por ahí (base de datos, multitienda).
-                $fingerprint = $this->apiKey ? md5($this->apiKey) : '';
-                if (isset($cached['key']) && $cached['key'] === $fingerprint) {
-                    return $cached;
-                }
+            $hit = $this->readConfigCache('KHIPU_WALLET_CACHE', $fingerprint);
+            if (null !== $hit) {
+                return $hit['value'];
             }
         }
 
         $state = array(
-            // Huella de la credencial, para que la caché de una cuenta no se le
-            // sirva a otra. No expone nada: la key está en claro dos filas más
-            // allá; esto sólo detecta el cambio.
-            'key' => $this->apiKey ? md5($this->apiKey) : '',
             'configured' => (bool) $this->apiKey,
             'enabled' => false,
             'reachable' => false,
             'balance' => null,
             'currency' => '',
             'add_funds_url' => '',
-            'checked_at' => $now,
         );
 
         if (!$this->apiKey) {
@@ -283,9 +287,56 @@ class KhipuPayment extends PaymentModule
             $state['reachable'] = false;
         }
 
-        Configuration::updateValue('KHIPU_WALLET_CACHE', json_encode($state));
+        $this->writeConfigCache('KHIPU_WALLET_CACHE', $fingerprint, $state, 30);
 
         return $state;
+    }
+
+    /**
+     * Lee una caché que escribió writeConfigCache().
+     *
+     * La billetera y los medios de pago se cachean igual —JSON en
+     * Configuration, con la huella de la credencial y un vencimiento— y cada
+     * uno tenía su propia copia de esta lógica, con esquemas distintos.
+     *
+     * @param string $name        clave de Configuration
+     * @param string $fingerprint huella de la credencial vigente
+     *
+     * @return array|null array('value' => lo guardado) si hay una entrada
+     *                    vigente de esta credencial; null si no. El valor
+     *                    guardado puede ser null (un fallo cacheado), por eso
+     *                    va envuelto.
+     */
+    private function readConfigCache($name, $fingerprint)
+    {
+        $cached = json_decode((string) Configuration::get($name), true);
+
+        if (!is_array($cached) || !array_key_exists('value', $cached) || !isset($cached['key'], $cached['expires_at'])) {
+            return null;
+        }
+
+        if ($cached['key'] !== $fingerprint || time() >= (int) $cached['expires_at']) {
+            return null;
+        }
+
+        return array('value' => $cached['value']);
+    }
+
+    /**
+     * @param string $name        clave de Configuration
+     * @param string $fingerprint huella de la credencial (no la expone: las
+     *                            credenciales están en claro en la misma tabla;
+     *                            solo detecta el cambio)
+     * @param mixed  $value       lo que se guarda, serializable a JSON
+     * @param int    $ttl         segundos de vigencia
+     */
+    private function writeConfigCache($name, $fingerprint, $value, $ttl)
+    {
+        Configuration::updateValue($name, json_encode(array(
+            'key' => $fingerprint,
+            'value' => $value,
+            'expires_at' => time() + (int) $ttl,
+        )));
     }
 
     /**
@@ -556,12 +607,77 @@ class KhipuPayment extends PaymentModule
         return $url;
     }
 
+    /**
+     * Si validateOrder() va a partir este carro en varios pedidos.
+     *
+     * Pasa cuando los productos no caben en un solo paquete (transportistas,
+     * direcciones o almacenes distintos): sale un pedido por paquete, todos con
+     * la misma referencia. Khipu no puede cobrar eso: un pago lleva una sola
+     * referencia y un solo monto, y la notificación rechaza una referencia que
+     * calza con más de un pedido.
+     *
+     * @return bool
+     */
+    public function cartSplitsIntoSeveralOrders(Cart $cart)
+    {
+        $packages = 0;
+        foreach ($cart->getPackageList() as $packagesByAddress) {
+            $packages += count($packagesByAddress);
+        }
+
+        return $packages > 1;
+    }
+
+    /**
+     * Rehace el carro de un pedido que no se llegó a pagar y lo deja en la
+     * sesión, para que el comprador vuelva al checkout con sus productos.
+     *
+     * Es lo mismo que hace el submitReorder del core, pero sin su condición de
+     * Customer::isLogged(), que deja fuera a los invitados: con el enlace del
+     * core, a un invitado se le vaciaba el carro y volvía a un checkout sin
+     * nada. Quien llama tiene que haber comprobado que el pedido es del
+     * visitante.
+     *
+     * @return bool
+     */
+    public function restoreCartOf(Order $order)
+    {
+        $oldCart = new Cart((int) $order->id_cart);
+
+        // Un fallo acá no puede tumbar la página que lo llama: es la de error
+        // del pago o el retorno desde Khipu, y el pedido ya quedó cancelado.
+        try {
+            $duplication = $oldCart->duplicate();
+        } catch (Exception $e) {
+            return false;
+        }
+
+        if (!$duplication || !Validate::isLoadedObject($duplication['cart']) || !$duplication['success']) {
+            return false;
+        }
+
+        $this->context->cookie->id_cart = (int) $duplication['cart']->id;
+        $this->context->cart = $duplication['cart'];
+        CartRule::autoAddToCart($this->context);
+        $this->context->cookie->write();
+
+        return true;
+    }
+
     public function hookPaymentOptions($params)
     {
         if (!$this->active) {
             return;
         }
         $this->cancelExpiredOrders();
+        // El carro viene en los parámetros del hook; el del contexto es el
+        // respaldo. Sin carro (quien llame al hook fuera del checkout) no hay
+        // nada que dividir, y pasarle null a cartSplitsIntoSeveralOrders() era
+        // un TypeError.
+        $cart = (isset($params['cart']) && $params['cart'] instanceof Cart) ? $params['cart'] : $this->context->cart;
+        if ($cart instanceof Cart && $this->cartSplitsIntoSeveralOrders($cart)) {
+            return [];
+        }
         $paymentMethods = $this->getKhipuPaymentMethods();
         if ($paymentMethods === null) {
             return [];
@@ -581,33 +697,43 @@ class KhipuPayment extends PaymentModule
     }
 
 
+    /**
+     * Medios de pago habilitados en la cuenta, o null si no se pudo preguntar.
+     *
+     * Esta llamada ocurre en cada render del checkout. Con el cURL a mano que
+     * había antes —sin timeout— una API lenta colgaba la página de pago hasta
+     * el max_execution_time del servidor; KhipuApi la corta a los 15 segundos.
+     *
+     * Aun así, 15 segundos por render es mucho, así que se cachea en
+     * Configuration: la respuesta buena 5 minutos (los medios de una cuenta
+     * cambian muy de vez en cuando) y el fallo 1 minuto, para que mientras
+     * Khipu no responde no se cuelgue cada comprador que llega al pago.
+     *
+     * @return array|null
+     */
     private function getKhipuPaymentMethods()
     {
-        $url = 'https://payment-api.khipu.com/v3/merchants/' . $this->merchantID . '/paymentMethods';
-        $headers = [
-            'x-api-key: ' . $this->apiKey
-        ];
-
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_USERAGENT, "khipu-api-php-client/" . KhipuPayment::API_VERSION . "|prestashop-khipu/" . KhipuPayment::PLUGIN_VERSION);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode != 200) {
-            return null;
-        }
-        $responseData = json_decode($response, true);
-
-        if (!isset($responseData['paymentMethods'])) {
+        // Sin credenciales no hay nada que preguntar. Antes la llamada salía
+        // igual, con la key vacía, en cada render.
+        if (!$this->apiKey || !$this->merchantID) {
             return null;
         }
 
-        return $responseData['paymentMethods'];
+        // Misma idea que en getWalletState(): la caché de una cuenta no se le
+        // sirve a otra. Acá la respuesta depende también del id de cobrador.
+        $fingerprint = md5($this->apiKey . '|' . $this->merchantID);
+
+        $hit = $this->readConfigCache('KHIPU_PAYMENT_METHODS_CACHE', $fingerprint);
+        if (null !== $hit) {
+            return $hit['value'];
+        }
+
+        $api = new KhipuApi($this->apiKey);
+        $methods = $api->getPaymentMethods($this->merchantID);
+
+        $this->writeConfigCache('KHIPU_PAYMENT_METHODS_CACHE', $fingerprint, $methods, (null === $methods) ? 60 : 300);
+
+        return $methods;
     }
 
 
@@ -688,8 +814,9 @@ class KhipuPayment extends PaymentModule
                     (Tools::getValue('refundOrderState') === 'refund') ? 'refund' : ''
                 );
             }
-            // La caché de la billetera es de la credencial anterior.
+            // Las cachés son de la credencial anterior.
             Configuration::deleteByName('KHIPU_WALLET_CACHE');
+            Configuration::deleteByName('KHIPU_PAYMENT_METHODS_CACHE');
 
             $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
             $this->apiKey = Configuration::get('KHIPU_API_KEY');

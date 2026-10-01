@@ -103,21 +103,61 @@ class KhipuRefund extends ObjectModel
     /**
      * La fila de order_payment que lleva el payment_id de Khipu.
      *
-     * Se busca la que TIENE transaction_id, no la primera de la colección:
-     * el módulo estampa el payment_id en [0] (KhipuPostBack.php:70-73) y con
-     * varios pagos registrados esa podría no ser la correcta.
+     * Se busca la que TIENE transaction_id, no la primera de la colección, y
+     * solo entre las de Khipu (ver khipuPaymentMethodNames()). Si el comercio
+     * anotó a mano un pago de otro medio con su propio identificador, esa fila
+     * no es la de Khipu: reversar con su identificador y su monto le mandaba a
+     * Khipu un pago que no es suyo. Sin fila de Khipu no hay panel de reversa.
      *
      * @return array|false con claves transaction_id y amount
      */
     public static function getPaymentRowForOrder(Order $order)
     {
+        $names = array();
+        foreach (self::khipuPaymentMethodNames($order) as $name) {
+            $names[] = '"' . pSQL($name) . '"';
+        }
+
         return Db::getInstance()->getRow('
             SELECT `transaction_id`, `amount`
             FROM `' . _DB_PREFIX_ . 'order_payment`
             WHERE `order_reference` = "' . pSQL($order->reference) . '"
               AND `transaction_id` IS NOT NULL
               AND `transaction_id` != ""
+              AND LOWER(TRIM(`payment_method`)) IN (' . implode(', ', $names) . ')
             ORDER BY `id_order_payment` ASC');
+    }
+
+    /**
+     * Si un medio de pago de order_payment es el de Khipu.
+     *
+     * @param string $method
+     *
+     * @return bool
+     */
+    public static function isKhipuPaymentMethod($method, Order $order)
+    {
+        return in_array(Tools::strtolower(trim((string) $method)), self::khipuPaymentMethodNames($order), true);
+    }
+
+    /**
+     * Nombres con que puede venir el medio de pago de Khipu en una fila, en
+     * minúsculas.
+     *
+     * El del pedido (lo copia validateOrder() del displayName del módulo) y
+     * «khipu», que es el displayName —en mayúsculas o no— de todas las
+     * versiones, y el que usa PrestaShop en la fila que crea al pasar a
+     * pagado. Va en minúsculas porque así compara MySQL esa columna. No se
+     * instancia el módulo para leer su displayName: esto corre en el webhook,
+     * que es público, y construirlo cuesta varias consultas.
+     *
+     * @return array
+     */
+    public static function khipuPaymentMethodNames(Order $order)
+    {
+        $names = array('khipu', Tools::strtolower(trim((string) $order->payment)));
+
+        return array_values(array_unique(array_filter($names, 'strlen')));
     }
 
     /**
