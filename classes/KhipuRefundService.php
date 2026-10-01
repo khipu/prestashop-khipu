@@ -1,4 +1,8 @@
 <?php
+require_once dirname(__FILE__) . '/KhipuVersion.php';
+require_once dirname(__FILE__) . '/KhipuRefundRules.php';
+require_once dirname(__FILE__) . '/KhipuHttp.php';
+
 /**
  * Cliente de los endpoints de reversa de la API de Khipu v3.
  *
@@ -7,8 +11,6 @@
  */
 class KhipuRefundService
 {
-    const BASE_URL = 'https://payment-api.khipu.com/v3';
-    const USER_AGENT = KhipuVersion::USER_AGENT;
     const CONNECT_TIMEOUT = 10;
     const TIMEOUT = 20;
 
@@ -27,7 +29,9 @@ class KhipuRefundService
     public function __construct($apiKey, $transport = null)
     {
         $this->apiKey = (string) $apiKey;
-        $this->transport = (null === $transport) ? self::curlTransport() : $transport;
+        $this->transport = (null === $transport)
+            ? KhipuHttp::curlTransport(self::CONNECT_TIMEOUT, self::TIMEOUT)
+            : $transport;
     }
 
     /**
@@ -93,22 +97,7 @@ class KhipuRefundService
      */
     private function request($method, $path, $payload, array $required = array())
     {
-        $headers = array(
-            'x-api-key: ' . $this->apiKey,
-            'User-Agent: ' . self::USER_AGENT,
-        );
-
-        if ('POST' === $method) {
-            $headers[] = 'Content-Type: application/json';
-        }
-
-        $body = null;
-        if (null !== $payload) {
-            $body = json_encode($payload);
-        }
-
-        $transport = $this->transport;
-        $raw = call_user_func($transport, $method, self::BASE_URL . $path, $headers, $body);
+        $raw = KhipuHttp::request($this->transport, $this->apiKey, $method, $path, $payload);
 
         return $this->interpret($raw, $required);
     }
@@ -171,35 +160,4 @@ class KhipuRefundService
         return $result;
     }
 
-    /**
-     * Transporte de producción.
-     *
-     * @return callable
-     */
-    private static function curlTransport()
-    {
-        return function ($method, $url, array $headers, $body) {
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, KhipuRefundService::CONNECT_TIMEOUT);
-            curl_setopt($ch, CURLOPT_TIMEOUT, KhipuRefundService::TIMEOUT);
-
-            if ('POST' === $method) {
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-            }
-
-            $responseBody = curl_exec($ch);
-            $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error = curl_error($ch);
-            curl_close($ch);
-
-            return array(
-                'status' => $status,
-                'body' => (false === $responseBody) ? '' : $responseBody,
-                'error' => (false === $responseBody) ? ($error ? $error : 'Error de comunicación con Khipu.') : '',
-            );
-        };
-    }
 }

@@ -1,5 +1,15 @@
 {
-    "require": {
-        "khipu/khipu-api-client": "3.0.0.x-dev"
+    "name": "khipu/prestashop-khipu",
+    "description": "Módulo de pago Khipu para PrestaShop",
+    "license": "OSL-3.0",
+    "type": "prestashop-module",
+    "require-dev": {
+        "phpunit/phpunit": "^8.5"
+    },
+    "config": {
+        "vendor-dir": "vendor",
+        "platform": {
+            "php": "7.2.5"
+        }
     }
 }

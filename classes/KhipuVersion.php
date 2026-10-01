@@ -17,7 +17,7 @@
 class KhipuVersion
 {
     /** Versión del módulo. Debe coincidir con config.xml y config_es.xml. */
-    const PLUGIN = '4.4.0';
+    const PLUGIN = '4.4.1';
 
     /** Versión de la API de Khipu contra la que habla. */
     const API = '3.0';

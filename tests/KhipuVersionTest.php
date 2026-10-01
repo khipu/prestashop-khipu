@@ -81,9 +81,7 @@ class KhipuVersionTest extends TestCase
         );
     }
 
-    /** El literal duplicado que motivó esta clase no debe volver. */
-    public function testElServicioNoTieneSuPropiaCopiaDelUserAgent()
-    {
-        $this->assertSame(KhipuVersion::USER_AGENT, KhipuRefundService::USER_AGENT);
-    }
+    // Que los clientes manden esta cabecera y no una copia propia lo prueban
+    // KhipuApiTest y KhipuRefundServiceTest sobre la petición que arma
+    // KhipuHttp::request(), el único lugar donde se escribe.
 }

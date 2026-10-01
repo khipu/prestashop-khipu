@@ -59,10 +59,14 @@ class KhipuRefundRules
      * @param string            $type      self::TYPE_FULL o self::TYPE_PARTIAL
      * @param string|float|null $amount    monto pedido (solo relevante en parcial)
      * @param float             $remaining saldo reversable local
+     * @param int               $decimals  decimales que admite la moneda, de
+     *                                     KhipuApi::amountPrecision(): la misma
+     *                                     regla del checkout y la notificación
+     *                                     (en pesos chilenos, ninguno)
      *
      * @return true|string true si valida; el mensaje de error si no
      */
-    public static function validateAmount($type, $amount, $remaining)
+    public static function validateAmount($type, $amount, $remaining, $decimals = 2)
     {
         if (self::TYPE_PARTIAL !== $type) {
             return true;
@@ -78,6 +82,17 @@ class KhipuRefundRules
         // silencio y se reversaría un monto distinto del que se escribió.
         if (!preg_match('/^[0-9]+(\.[0-9]+)?$/', $raw)) {
             return 'El monto solo admite dígitos y un punto como separador decimal.';
+        }
+
+        // Más decimales de los que la moneda admite: Khipu no cobró esas
+        // fracciones, así que no hay de dónde devolverlas.
+        $dot = strpos($raw, '.');
+        if (false !== $dot && rtrim(substr($raw, $dot + 1), '0') !== ''
+            && strlen(rtrim(substr($raw, $dot + 1), '0')) > (int) $decimals
+        ) {
+            return 0 === (int) $decimals
+                ? 'Esta moneda no admite decimales: indica un monto entero.'
+                : 'El monto admite a lo más ' . (int) $decimals . ' decimales.';
         }
 
         $value = (float) $raw;
