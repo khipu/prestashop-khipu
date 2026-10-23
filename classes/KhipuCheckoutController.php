@@ -12,6 +12,7 @@
  */
 
 require_once dirname(__FILE__) . '/KhipuApi.php';
+require_once dirname(__FILE__) . '/KhipuEmbeddedRules.php';
 
 /**
  * Tronco común del checkout de Khipu.
@@ -34,18 +35,38 @@ abstract class KhipuCheckoutController extends ModuleFrontController
     abstract protected function getPaymentUrlKey();
 
     /**
-     * Si este medio de pago se ofrece para la moneda del carro. Tiene que
-     * coincidir con lo que muestra hookPaymentOptions(): la URL del controlador
-     * es pública, y sin esto creaba pedidos con un medio que la tienda no
-     * ofrecía para esa moneda.
+     * Id del medio en la API de Khipu (REGULAR_TRANSFER, SIMPLIFIED_TRANSFER o
+     * LIGOPAY). La URL del controlador es pública: con esto se comprueba que la
+     * cuenta y el panel ofrezcan este medio antes de crear nada.
      *
-     * @param string $isoCode
+     * @return string
+     */
+    abstract protected function getMethodId();
+
+    /**
+     * Si el pago se abre embebido en la tienda (Khipu Web) en vez de redirigir
+     * al pagador. Solo la transferencia simplificada lo tiene.
      *
      * @return bool
      */
-    protected function acceptsCurrency($isoCode)
+    protected function usesEmbedded(): bool
     {
-        return true;
+        return false;
+    }
+
+    /**
+     * Si el pedido es del cliente con sesión abierta (también cuenta el de
+     * invitado, que PrestaShop deja en la sesión al terminar la compra).
+     *
+     * Lo usan el retorno desde Khipu (validate) y la cancelación del embebido.
+     *
+     * @return bool
+     */
+    public static function belongsToVisitor(Order $order, Context $context)
+    {
+        $customer = $context->customer;
+
+        return Validate::isLoadedObject($customer) && (int)$customer->id === (int)$order->id_customer;
     }
 
     public function initContent()
@@ -57,7 +78,11 @@ abstract class KhipuCheckoutController extends ModuleFrontController
 
         $cart = $this->context->cart;
 
-        if (!$this->canPayCart($cart)) {
+        // Un medio que la cuenta no tiene o el comercio desmarcó no se paga por
+        // la URL directa: se corta antes de crear el pedido, igual que si el
+        // carro no se pudiera pagar.
+        if (!in_array($this->getMethodId(), $this->module->getVisibleMethodIds(), true)
+            || !$this->canPayCart($cart)) {
             Tools::redirect($this->context->link->getPageLink('order', true, null, 'step=1'));
 
             return;
@@ -109,8 +134,32 @@ abstract class KhipuCheckoutController extends ModuleFrontController
         $response = $api->createPayment($this->buildPayload($cart, $order));
         $urlKey = $this->getPaymentUrlKey();
 
-        if ($response['ok'] && isset($response['data'][$urlKey])) {
-            Tools::redirect($response['data'][$urlKey]);
+        $redirectUrl = $response['ok'] && is_array($response['data'])
+            ? KhipuApi::selectRedirectUrl(
+                $response['data'],
+                $urlKey
+            )
+            : null;
+
+        // En el embebido la URL del medio va a un href y a window.location
+        // desde el navegador: si no es https no se usa, y se sigue el camino
+        // de error de siempre.
+        if ($redirectUrl && $this->usesEmbedded() && !KhipuEmbeddedRules::isHttpsUrl($redirectUrl)) {
+            $redirectUrl = null;
+        }
+
+        if ($redirectUrl) {
+            $paymentId = KhipuEmbeddedRules::paymentIdFrom($response['data']);
+
+            // Sin payment_id KWS no puede abrir el pago, pero la URL del medio
+            // sí sirve: se redirige como siempre.
+            if ($this->usesEmbedded() && null !== $paymentId) {
+                $this->displayEmbedded($cart, $order, $paymentId, $redirectUrl);
+
+                return;
+            }
+
+            Tools::redirect($redirectUrl);
 
             return;
         }
@@ -140,6 +189,42 @@ abstract class KhipuCheckoutController extends ModuleFrontController
         }
 
         $this->displayKhipuError($message, $errors, $this->context->link->getPageLink('order', true));
+    }
+
+    /**
+     * Página del módulo que abre Khipu Web (KWS) en un modal dentro de la
+     * tienda. El pedido y el pago ya están creados; khipu-embedded.js lee los
+     * data-* del ancla y decide a dónde va el comprador según el resultado.
+     *
+     * @param string $paymentId
+     * @param string $fallbackUrl URL del medio, por si KWS no carga
+     */
+    private function displayEmbedded(Cart $cart, Order $order, $paymentId, $fallbackUrl)
+    {
+        $link = $this->context->link;
+
+        $this->registerJavascript(
+            'modules-khipupayment-embedded',
+            'modules/' . $this->module->name . '/views/js/khipu-embedded.js',
+            array('position' => 'bottom', 'priority' => 200, 'version' => KhipuVersion::PLUGIN)
+        );
+
+        $this->context->smarty->assign(array(
+            'payment_id' => $paymentId,
+            // La misma URL de retorno que se le dio a Khipu al crear el pago.
+            'return_url' => $link->getModuleLink($this->module->name, 'validate', array(
+                'return' => 'ok',
+                'reference' => $order->reference,
+                'cartId' => $cart->id,
+            )),
+            'fallback_url' => $fallbackUrl,
+            'cancel_url' => $link->getModuleLink($this->module->name, 'embedded', array(), true),
+            'reference' => $order->reference,
+            // No se llama `token`: pisaría el `token` global de PrestaShop.
+            'khipu_token' => Tools::getToken(false),
+            'kws_url' => 'https://js.khipu.com/v1/kws.js',
+        ));
+        $this->setTemplate('module:khipupayment/views/templates/front/embedded.tpl');
     }
 
     /**
@@ -178,11 +263,7 @@ abstract class KhipuCheckoutController extends ModuleFrontController
         // ...pero no la moneda: esa la filtra el hook, y por la URL directa se
         // podía pagar en una moneda que el comercio desmarcó para Khipu. Es la
         // misma comprobación que checkCurrency() de ps_wirepayment.
-        if (!$authorized || !$this->moduleAcceptsCurrency((int)$cart->id_currency)) {
-            return false;
-        }
-
-        return $this->acceptsCurrency(Currency::getCurrencyInstance((int)$cart->id_currency)->iso_code);
+        return $authorized && $this->moduleAcceptsCurrency((int)$cart->id_currency);
     }
 
     /**

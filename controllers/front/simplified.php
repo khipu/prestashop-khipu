@@ -26,4 +26,18 @@ class KhipuPaymentSimplifiedModuleFrontController extends KhipuCheckoutControlle
     {
         return 'simplified_transfer_url';
     }
+
+    protected function getMethodId()
+    {
+        return 'SIMPLIFIED_TRANSFER';
+    }
+
+    /**
+     * Khipu Web solo existe para la simplificada; el módulo decide si está
+     * encendido en el panel y disponible en la cuenta.
+     */
+    protected function usesEmbedded(): bool
+    {
+        return (bool)$this->module->isEmbeddedActive();
+    }
 }

@@ -5,3 +5,5 @@ require_once dirname(__FILE__) . '/../classes/KhipuHttp.php';
 require_once dirname(__FILE__) . '/../classes/KhipuRefundRules.php';
 require_once dirname(__FILE__) . '/../classes/KhipuRefundService.php';
 require_once dirname(__FILE__) . '/../classes/KhipuApi.php';
+require_once dirname(__FILE__) . '/../classes/KhipuMethods.php';
+require_once dirname(__FILE__) . '/../classes/KhipuEmbeddedRules.php';

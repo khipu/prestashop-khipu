@@ -22,6 +22,7 @@ rm -rf \
     khipupayment/.gitmodules \
     khipupayment/.github \
     khipupayment/.claude \
+    khipupayment/.superpowers \
     khipupayment/.idea \
     khipupayment/*.iml \
     khipupayment/.DS_Store \

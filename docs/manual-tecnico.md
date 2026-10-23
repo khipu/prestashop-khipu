@@ -6,7 +6,7 @@ Khipu, qué persiste y cómo se desarrolla y empaqueta.
 Para instalar y operar el módulo, ver [manual-comercio.md](manual-comercio.md).
 
 - **Módulo:** `khipupayment`
-- **Versión:** 4.4.1 (fuente única: `classes/KhipuVersion.php`)
+- **Versión:** 4.5.0 (fuente única: `classes/KhipuVersion.php`)
 - **API de Khipu:** v3 (`https://payment-api.khipu.com/v3`)
 - **Compatibilidad:** PrestaShop 1.7 – 8.x, PHP 7.x/8.x, extensión cURL obligatoria
 
@@ -20,9 +20,9 @@ hooks y aporta controladores propios. Este módulo usa cuatro piezas de la plata
 | Pieza de PrestaShop | Qué hace aquí |
 |---|---|
 | **Hooks** | `paymentOptions` (ofrecer medios de pago), `paymentReturn` (página de confirmación), `displayAdminOrderMainBottom` + `displayAdminOrder` (panel de reversa) |
-| **Front controllers** | `controllers/front/{simplified,manual,validate}.php`, accesibles vía `getModuleLink()` |
+| **Front controllers** | `controllers/front/{simplified,manual,ligopay,embedded,validate}.php`, accesibles vía `getModuleLink()` |
 | **Admin controller** | `controllers/admin/AdminKhipuRefundController.php`, ejecuta la reversa |
-| **`Configuration`** | Almacén clave-valor donde viven credenciales, ajustes y la caché de billetera |
+| **`Configuration`** | Almacén clave-valor donde viven credenciales, ajustes (título, descripción, modo, medios) y las cachés |
 
 Fuera de ese marco hay **un punto de entrada directo**: `validate.php` en la raíz del
 módulo, que recibe la notificación de pago de Khipu. No es un controlador de PrestaShop
@@ -41,14 +41,18 @@ classes/
   KhipuVersion.php                    Versión del plugin y de la API; arma el User-Agent
   KhipuHttp.php                       Transporte cURL compartido (aquí viven los timeouts)
   KhipuApi.php                        Cliente de los endpoints de pago (checkout)
-  KhipuCheckoutController.php         Tronco común de los dos controladores de checkout
+  KhipuMethods.php                    Lógica pura de medios: etiquetas, título compuesto, selección, embebido
+  KhipuEmbeddedRules.php              Lógica pura del embebido: payment_id, URL https, cuándo se puede cancelar
+  KhipuCheckoutController.php         Tronco común de los controladores de checkout
   KhipuRefund.php                     ObjectModel de la tabla khipu_refund + consultas
   KhipuRefundRules.php                Lógica pura de reversa (sin PrestaShop, sin red)
   KhipuRefundService.php              Cliente HTTP de los endpoints de reversa
 
 controllers/front/
-  simplified.php                      Solo declara la URL de transferencia simplificada
-  manual.php                          Solo declara la URL de transferencia normal (solo CLP)
+  simplified.php                      Medio SIMPLIFIED_TRANSFER (`simplified_transfer_url`); decide si va embebido
+  manual.php                          Medio REGULAR_TRANSFER (`transfer_url`)
+  ligopay.php                         Medio LIGOPAY (`ligopay_url`)
+  embedded.php                        Cancelación del pago embebido (POST JSON)
   validate.php                        Retorno del cliente: confirmación o cancelación
 
 controllers/admin/
@@ -57,14 +61,18 @@ controllers/admin/
 views/templates/
   admin/config.tpl                    Pantalla de configuración del módulo
   admin/order_refund_panel.tpl        Panel de reversa en la ficha del pedido
-  hook/info_{simplified,normal}.tpl   Texto de cada medio de pago en el checkout
+  hook/info.tpl                       Descripción compartida bajo cada fila del checkout
   hook/payment_return.tpl             Bloque de la página de confirmación
   front/khipu_error.tpl               Error de comunicación con Khipu
   front/khipu_message.tpl             Avisos al volver de Khipu (pago recibido, carro perdido)
+  front/embedded.tpl                  Página con el ancla #khipu-web-root del pago embebido
   front/validation.tpl                Plantilla heredada, sin uso en el flujo actual
 
 upgrade/upgrade-4.4.0.php             Migración para tiendas ya instaladas
 upgrade/upgrade-4.4.1.php             Sin cambios de esquema (existe porque se exige uno por versión)
+upgrade/upgrade-4.5.0.php             Sin cambios de esquema ni de hooks; los ajustes nuevos no se migran
+views/js/khipu-embedded.js            Cliente de Khipu Web (KWS) del pago embebido
+views/img/                            khipu-transferencia-normal.png, khipu-transferencia-simplificada.png
 tests/                                PHPUnit sobre la lógica pura (no se empaqueta)
 package.sh                            Genera dist/khipupayment.zip
 ```
@@ -84,8 +92,8 @@ Checkout                         Módulo                            Khipu
    │                                │ validateOrder()                │
    │                                │ → pedido en "Esperando pago"   │
    │                                │ POST /v3/payments ────────────►│
-   │                                │◄──────── simplified_transfer_url / transfer_url
-   │◄─ redirect a Khipu ────────────│                                │
+   │                                │◄──── simplified_transfer_url / transfer_url / ligopay_url
+   │◄─ redirect a Khipu (o página embebida, ver 2.5)                 │
    │                                                                 │
    │ paga en su banco ──────────────────────────────────────────────►│
    │                                │◄── POST notify_url (webhook) ──│
@@ -102,22 +110,49 @@ Checkout                         Módulo                            Khipu
    (productos que no caben en un solo paquete: transportistas, direcciones o almacenes
    distintos), no ofrece Khipu. Un pago lleva una sola referencia y un solo monto, y el
    webhook rechaza una referencia con más de un pedido.
-3. `KhipuApi::getPaymentMethods()` → `GET /v3/merchants/{KHIPU_MERCHANTID}/paymentMethods`.
-   Si la respuesta no es 200, no es JSON o no trae `paymentMethods`, devuelve `null` y el
-   hook entrega el array vacío: sin medios de pago Khipu en el checkout.
-4. Ofrece `SIMPLIFIED_TRANSFER` si la cuenta lo tiene, y `REGULAR_TRANSFER` **solo si la
-   moneda del contexto es CLP**.
+3. `getVisibleMethodIds()` cruza dos cosas y nada más:
+   - los medios de la cuenta: `KhipuApi::getPaymentMethods()` →
+     `GET /v3/merchants/{KHIPU_MERCHANTID}/paymentMethods`. `KhipuMethods::accountMethodIds()`
+     devuelve todos sus ids, sin repetir y en el orden de Khipu, **menos los excluidos**
+     (lista fija en `KhipuMethods`, hoy solo `DIRECT_DEBIT`, que no sirve para pagar una
+     compra). Esa lista es la del panel: un medio que el módulo no conoce aparece como
+     casilla. Para el checkout, `getVisibleMethodIds()` se queda además solo con los que
+     tienen controlador (`REGULAR_TRANSFER`, `SIMPLIFIED_TRANSFER`, `LIGOPAY`): un medio sin
+     controlador puede estar marcado y no genera ninguna fila ni rompe nada;
+   - las casillas del panel (`KHIPU_ENABLED_METHODS`, ver §4).
+4. Por cada id visible, `getPaymentOptionFor()` arma una fila `PaymentOption`:
 
-La lista se cachea en `KHIPU_PAYMENT_METHODS_CACHE`: 5 minutos si la respuesta fue buena,
-1 minuto si falló (para no colgar a cada comprador mientras Khipu no responde), con una
-huella MD5 de API Key + id de cobrador. Sin credenciales configuradas no se llama a Khipu.
-Cuando sí se llama, el techo es de 15 s.
+   | Medio | Controlador | Clave de la URL | Imagen |
+   |---|---|---|---|
+   | `REGULAR_TRANSFER` | `manual` | `transfer_url` | `khipu-transferencia-normal.png` |
+   | `SIMPLIFIED_TRANSFER` | `simplified` | `simplified_transfer_url` | `khipu-transferencia-simplificada.png` |
+   | `LIGOPAY` | `ligopay` | `ligopay_url` | ninguna |
+
+   El nombre de la fila es `KhipuMethods::composeTitle()`: `{Título} - {Medio}` (títulos
+   `Transferencia normal`, `Transferencia simplificada`, `LigoPay`); un título vacío cae a
+   `Khipu`. Bajo la fila va `hook/info.tpl` con la descripción.
+
+**El módulo no decide por moneda ni por país.** No hay ningún `if` por moneda o país: una
+fila existe si la cuenta tiene el medio y está marcado. Sigue valiendo la restricción de
+monedas, países y grupos de *Preferencias de pago*, que es de PrestaShop (y que los
+controladores vuelven a comprobar, ver §2.2). Perú ya no tiene botón único: cada medio de
+la cuenta tiene su fila.
+
+**Caché y tolerancia a fallos.** `getAccountMethods()` guarda la lista en
+`KHIPU_PAYMENT_METHODS_CACHE`: 5 minutos si la respuesta fue buena, 1 minuto si falló (para
+no colgar a cada comprador mientras Khipu no responde), con una huella MD5 de API Key + id
+de cobrador. Junto a la entrada se guarda el **último resultado bueno** (`last_good`) de esa
+misma cuenta: si Khipu falla después de un éxito, el checkout sigue ofreciendo los medios
+que ya conocía. Sin éxito previo (tienda nueva, credenciales nuevas: el cambio de
+credenciales descarta la caché y el último bueno) un fallo devuelve `null` y no hay filas.
+Sin credenciales configuradas no se llama a Khipu. Cuando sí se llama, el techo es de 15 s.
 
 ### 2.2 Creación del pago — `KhipuCheckoutController`
 
 El flujo vive entero en `classes/KhipuCheckoutController.php`. Los controladores
-`simplified.php` y `manual.php` solo declaran qué clave de la respuesta de Khipu lleva la
-URL de pago (`simplified_transfer_url` vs `transfer_url`).
+`simplified.php`, `manual.php` y `ligopay.php` solo declaran su medio (`getMethodId()`) y
+qué clave de la respuesta de Khipu lleva la URL de pago (`getPaymentUrlKey()`); además,
+`simplified.php` decide si va embebido (`usesEmbedded()`).
 
 Secuencia:
 
@@ -125,8 +160,9 @@ Secuencia:
    cliente, direcciones y productos, carro sin pedido previo, módulo autorizado en
    *Preferencias de pago* (país y grupo con `Module::getPaymentModules()`; la moneda
    aparte, con `getCurrency()` del módulo, porque ese método no la mira y el hook sí) y
-   moneda aceptada por el medio (`manual.php` solo acepta CLP, igual que
-   `hookPaymentOptions()`). Si alguno falla, redirige al paso 1 del checkout sin
+   medio visible: el `getMethodId()` del controlador tiene que estar en
+   `getVisibleMethodIds()` (cuenta + casilla), porque la URL del controlador es pública.
+   No hay comprobación de moneda propia del módulo. Si alguno falla, redirige al paso 1 del checkout sin
    crear nada. Si el carro se divide en varios pedidos, muestra `khipu_error.tpl` con la
    explicación, también sin crear nada.
 1. `validateOrder(id_cart, PS_OS_KHIPU_OPEN, total, …)` — crea el pedido **antes** de
@@ -148,7 +184,8 @@ Secuencia:
    | `payer_email` | Correo del cliente |
    | `notify_api_version` | `3.0` |
 
-3. Si la respuesta no es 200, o no trae la URL esperada, **el pedido se cancela** (libera
+3. Si la respuesta no es 200, o no trae la URL de su propio medio
+   (`KhipuApi::selectRedirectUrl()`: ninguna otra URL la reemplaza), **el pedido se cancela** (libera
    el stock), se registra el motivo en el log —incluido el error de transporte si hubo
    timeout, DNS o TLS—, el carro se rehace en la sesión (`KhipuPayment::restoreCartOf()`)
    y se renderiza `front/khipu_error.tpl` con un botón *Volver a intentar* que lleva al
@@ -156,7 +193,7 @@ Secuencia:
    cuenta: a un invitado lo dejaba con el carro vacío. Si el carro no se puede rehacer
    (un producto que se agotó o se desactivó), la página lo dice y no muestra el botón,
    que llevaría a un checkout vacío.
-4. Con la URL, `Tools::redirect()` al portal de Khipu.
+4. Con la URL, `Tools::redirect()` al portal de Khipu; salvo en el modo embebido (§2.5).
 
 > `notify_url` se construye con `Tools::getShopDomainSsl()`. Si el dominio SSL de la tienda
 > está mal configurado en PrestaShop, la notificación se dirige a una URL equivocada y
@@ -257,6 +294,71 @@ La idempotencia viene de los pasos 6 y 7: una notificación repetida sobre un pe
 pasó por un estado pagado —aunque ahora esté enviado, entregado o reembolsado— responde
 `200` sin volver a cambiar el estado ni reenviar el correo, y el `payment_id` solo se
 escribe si falta.
+
+### 2.5 Pago embebido (Khipu Web)
+
+Solo lo tiene `SIMPLIFIED_TRANSFER`. `simplified.php::usesEmbedded()` devuelve
+`isEmbeddedActive()`: el comercio lo quiere (`KHIPU_EMBEDDED` = `1`, el valor por defecto)
+**y** la cuenta lo permite (`SIMPLIFIED_TRANSFER` en `paymentMethods`,
+`KhipuMethods::embeddedAvailable()`). Con el modo en Embebido y la simplificada sin marcar
+no pasa nada: la fila no existe.
+
+Con el modo activo, tras crear el pedido y el pago, en vez de redirigir el controlador
+muestra `front/embedded.tpl`:
+
+- Solo se usa si la URL del medio es `https` con host (`KhipuEmbeddedRules::isHttpsUrl()`):
+  termina en un `href` y en `window.location`. Si no, se sigue el camino de error de
+  siempre. Si la respuesta no trae un `payment_id` utilizable, se redirige a la URL del
+  medio como si no hubiera embebido.
+- La plantilla pone el ancla `#khipu-web-root` con `data-*` (`payment-id`, `return-url`,
+  `fallback-url`, `cancel-url`, `reference`, `token`, `kws-url`) y registra
+  `views/js/khipu-embedded.js`. El token es `Tools::getToken(false)`; no se llama `token`
+  en Smarty para no pisar el global de PrestaShop.
+- El JS carga `https://js.khipu.com/v1/kws.js` **en el navegador del comprador** y abre el
+  modal (`startOperation`, color `#8347AD`). **Seguridad y servicios externos:** ese
+  dominio es el único origen extra que carga el navegador en el modo embebido; con
+  Redirección no se carga.
+- `OK`, `WARNING`, `CONTINUE` y cualquier resultado que no sea `ERROR` llevan a
+  `validate` con `return=ok`; el estado del pedido lo decide la notificación, no esta
+  página.
+- Si KWS no carga en 10 s o lanza una excepción, redirige a la URL del medio
+  (`simplified_transfer_url`).
+- `ERROR` muestra bajo el modal «El pago no se completó: <motivo>» (`exitMessage` o
+  `failureReason` del resultado, escritos como texto) y llama al endpoint de cancelación **en
+  segundo plano**: la página no navega sola, para que el comprador alcance a leer el motivo;
+  cuando el endpoint responde se agrega el enlace «Volver a mi carrito» (o «Ver mi pedido» si
+  no se canceló nada). El abandono del comprador se trata así cuando Khipu Web lo informa como
+  `ERROR`; cualquier otro resultado va al retorno normal.
+- `startOperation` se llama con `skipExitPage: false`, así Khipu Web muestra su propia página de
+  salida dentro del modal (con `true` el modal se cerraba apenas llegaba el error).
+
+**Endpoint de cancelación — `controllers/front/embedded.php`.** POST con `reference`,
+`payment_id` y `token`. Responde siempre JSON `{"ok": bool, "redirect": url}` (`Cache-Control:
+no-store`); los rechazos van con HTTP 403 y el mismo cuerpo, que el JS lee igual. Comprobaciones,
+en orden:
+
+1. Método POST, `token` igual a `Tools::getToken(false)` (`hash_equals`), `payment_id` no
+   vacío, y los tres valores deben ser texto (no arreglos).
+2. La referencia resuelve **un solo** pedido (`Order::getByReference()`) y es del visitante
+   con sesión (`KhipuCheckoutController::belongsToVisitor()`). Si algo de esto falla no se
+   devuelve nada del pedido: solo el inicio de la tienda.
+3. El pedido sigue en *Esperando pago Khipu*. Si no, no se pregunta a Khipu y se manda al
+   retorno normal.
+4. `KhipuEmbeddedRules::canCancel()`: `GET /v3/payments/{id}` debe traer un
+   `transaction_id` igual a la referencia del pedido (el `payment_id` viene del navegador;
+   sin esto, con la referencia propia se podría borrar el pago de otro comprador) y estar
+   `pending` (o sin estado).
+5. `DELETE /v3/payments/{id}`; solo 2xx o 404 cuentan (`deleteSucceeded()`). Cualquier otra
+   cosa deja el pedido abierto y lo registra en el log: cancelarlo con el pago pagable
+   permitiría pagar un pedido cancelado; si nadie paga, lo cancela `cancelExpiredOrders()`.
+6. Se relee el estado del pedido de la base (sin caché). Si ya no está abierto, no se
+   cancela otra vez.
+7. Se cancela (`PS_OS_CANCELED`) y se rehace el carro con `restoreCartOf()` (sin pisar un
+   carro propio con productos), y se redirige al paso 1 del checkout. Si el carro no se
+   puede rehacer, al retorno con `return=cancel`, que muestra el aviso.
+
+Un pedido por clic: PrestaShop crea un pedido nuevo en cada intento, así que no hay lógica
+de reutilizar pagos.
 
 ---
 
@@ -405,15 +507,30 @@ devuelta y la API de Khipu no permite reconstruirlo.
 | `KHIPU_MINUTES_TIMEOUT` | Minutos antes de cancelar un pedido impago (defecto 360) | Sí |
 | `KHIPU_REFUND_ORDER_STATE` | `'refund'` o `''` | Sí |
 | `KHIPU_WALLET_CACHE` | Caché JSON del estado de billetera (30 s) | Sí |
-| `KHIPU_PAYMENT_METHODS_CACHE` | Caché JSON de los medios de pago de la cuenta (5 min; 1 min si falló) | Sí |
+| `KHIPU_TITLE` | Título del checkout (defecto `Khipu`; en blanco cae a `Khipu`) | Sí |
+| `KHIPU_DESCRIPTION` | Descripción bajo cada fila (defecto `Paga con tu banco`; vacía a propósito se respeta) | Sí |
+| `KHIPU_EMBEDDED` | `1` = Embebido (defecto), `0` = Redirección | Sí |
+| `KHIPU_ENABLED_METHODS` | JSON con los ids de medios marcados. Ausente = todos los de la cuenta; una lista, aun vacía, es una selección explícita | Sí |
+| `KHIPU_PAYMENT_METHODS_CACHE` | Caché JSON de los medios de pago de la cuenta (5 min; 1 min si falló) más el último resultado bueno | Sí |
 | `KHIPU_UNKNOWN_REF_LOGGED_AT` | Hora (Unix) del último aviso de retorno con referencia desconocida | Sí |
 | `KHIPU_REFUND_NONCE_{id_employee}` | Nonce del formulario de reversa | Sí (por `LIKE`) |
 | `PS_OS_KHIPU_OPEN` | Id del estado *Esperando pago Khipu* | **No** |
 
 `getContent()` guarda solo los campos presentes en el POST: los ajustes están repartidos
-en dos formularios y `Tools::getValue()` devuelve `false` para un campo ausente, así que
-escribir a ciegas borraría el otro panel. Al guardar credenciales se invalidan
-`KHIPU_WALLET_CACHE` y `KHIPU_PAYMENT_METHODS_CACHE`.
+en dos formularios (*Configuración Básica*, que lleva credenciales, título, descripción,
+modo y medios, y *Billetera de reversas*) y `Tools::getValue()` devuelve `false` para un
+campo ausente, así que escribir a ciegas borraría el otro panel. Una casilla desmarcada no
+viaja en el POST, por eso el interruptor y la lista de medios envían un campo marcador
+(`embedded_present`, `enabledMethods_present`) cuando se muestran; con el interruptor
+bloqueado (la cuenta no tiene simplificada) no se envía, y el ajuste guardado no se pisa.
+Sin lista de medios de la cuenta (Khipu no respondió y no hay último bueno) tampoco se
+guarda la selección. **Los ajustes nuevos no se migran** (ver §5). Al guardar se invalida `KHIPU_WALLET_CACHE`;
+`KHIPU_PAYMENT_METHODS_CACHE` no se borra a propósito, porque guarda el último resultado
+bueno (`last_good`) y borrarla lo perdería justo si Khipu está caído. Su huella
+`md5(apiKey|merchantID)` la descarta sola si cambian las credenciales. Además, si en el
+mismo POST cambian `apiKey` o `merchantID`, la selección enviada es de la cuenta anterior:
+se descarta `KHIPU_ENABLED_METHODS` (ausente = todos los medios de la cuenta nueva) y no se
+guarda la selección del formulario.
 
 ---
 
@@ -428,17 +545,24 @@ escribir a ciegas borraría el otro panel. Al guardar credenciales se invalidan
 4. `KHIPU_REFUND_ORDER_STATE = 'refund'`.
 5. Crea el estado de pedido **Esperando pago Khipu** (`PS_OS_KHIPU_OPEN`), color `#4169e1`,
    no `logable`, sin correo.
+6. Fija `KHIPU_TITLE` = `Khipu`, `KHIPU_DESCRIPTION` = `Paga con tu banco` y
+   `KHIPU_EMBEDDED` = `1`. `KHIPU_ENABLED_METHODS` no se fija (ausente = todos los de la
+   cuenta).
 
 `upgrade/upgrade-4.4.0.php` entrega lo mismo a las tiendas ya instaladas (tabla, hooks,
-tab, ajuste por defecto), todo idempotente. `upgrade-4.4.1.php` no hace nada: existe
-porque `KhipuVersionTest` exige un archivo por versión.
+tab, ajuste por defecto), todo idempotente. `upgrade-4.4.1.php` y `upgrade-4.5.0.php` no
+hacen nada: existen porque `KhipuVersionTest` exige un archivo por versión. En 4.5.0 no se
+migran los ajustes nuevos: mientras no existan, el módulo usa sus valores por defecto
+(título `Khipu`, descripción `Paga con tu banco`, Embebido y todos los medios de la cuenta).
+Una tienda que actualiza conserva credenciales, pero debe volver a ingresar título y
+descripción si quiere otros, y revisar los medios marcados.
 
 > PrestaShop decide si ejecuta un upgrade comparando la versión instalada con la de
 > `config.xml`. Al subir de versión hay que tocar **cuatro** lugares:
 > `classes/KhipuVersion.php::PLUGIN`, `config.xml`, `config_es.xml` y el nombre del archivo
 > en `upgrade/`.
 
-`uninstall()` borra las claves de `Configuration`, desregistra los hooks y elimina el tab.
+`uninstall()` borra las claves de `Configuration` (incluidas las de título, descripción, modo y medios), desregistra los hooks y elimina el tab.
 Conserva la tabla `khipu_refund` y el estado de pedido.
 
 ---
@@ -500,6 +624,8 @@ instale ahí corre también en PHP 8.
 - `KhipuRefundRulesTest` — validación de montos, parseo de errores, clasificación de desenlaces
 - `KhipuRefundServiceTest` — interpretación de respuestas con transporte inyectado
 - `KhipuApiTest` — medios de pago y creación del pago, también con transporte inyectado
+- `KhipuMethodsTest` — etiquetas, título compuesto, selección, disponibilidad y embebido según la cuenta
+- `KhipuEmbeddedRulesTest` — `payment_id`, URL https y cuándo se puede cancelar el embebido
 - `KhipuVersionTest` — coherencia de versiones
 
 Toda lógica nueva debería poder probarse igual: si necesita red, va en una clase con
