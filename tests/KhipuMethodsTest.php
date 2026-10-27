@@ -11,6 +11,7 @@ class KhipuMethodsTest extends TestCase
         $this->assertSame('Transferencia normal', KhipuMethods::label('REGULAR_TRANSFER'));
         $this->assertSame('Transferencia simplificada', KhipuMethods::label('SIMPLIFIED_TRANSFER'));
         $this->assertSame('LigoPay', KhipuMethods::label('LIGOPAY'));
+        $this->assertSame('Pago por QR', KhipuMethods::label('NAVE'));
     }
 
     public function testEtiquetaDeUnIdDesconocidoEsElIdLegible()
@@ -23,6 +24,7 @@ class KhipuMethodsTest extends TestCase
     {
         $this->assertSame('Khipu - LigoPay', KhipuMethods::composeTitle('Khipu', 'LIGOPAY'));
         $this->assertSame('Mi tienda - LigoPay', KhipuMethods::composeTitle('Mi tienda', 'LIGOPAY'));
+        $this->assertSame('Khipu - Pago por QR', KhipuMethods::composeTitle('Khipu', 'NAVE'));
     }
 
     public function testTituloEnBlancoUsaKhipu()
@@ -109,6 +111,7 @@ class KhipuMethodsTest extends TestCase
     {
         $this->assertTrue(KhipuMethods::embeddedAvailable(array(array('id' => 'SIMPLIFIED_TRANSFER'))));
         $this->assertFalse(KhipuMethods::embeddedAvailable(array(array('id' => 'LIGOPAY'))));
+        $this->assertFalse(KhipuMethods::embeddedAvailable(array(array('id' => 'NAVE'))));
         $this->assertFalse(KhipuMethods::embeddedAvailable(null));
     }
 
@@ -131,6 +134,14 @@ class KhipuMethodsTest extends TestCase
         $this->assertSame(array('LIGOPAY'), KhipuMethods::visibleMethodIds($methods, '["LIGOPAY"]'));
         $this->assertSame(array('REGULAR_TRANSFER', 'LIGOPAY'), KhipuMethods::visibleMethodIds($methods, null));
         $this->assertSame(array(), KhipuMethods::visibleMethodIds($methods, '[]'));
+    }
+
+    public function testElQrDeArgentinaTieneFilaJuntoALaSimplificada()
+    {
+        $methods = array(array('id' => 'NAVE'), array('id' => 'SIMPLIFIED_TRANSFER'));
+
+        $this->assertSame(array('NAVE', 'SIMPLIFIED_TRANSFER'), KhipuMethods::visibleMethodIds($methods, null));
+        $this->assertSame(array('NAVE'), KhipuMethods::visibleMethodIds($methods, '["NAVE"]'));
     }
 
     // --- credentialsChanged ------------------------------------------------

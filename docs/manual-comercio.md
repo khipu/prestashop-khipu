@@ -80,6 +80,7 @@ cada uno**, con el nombre **{Título} - {Medio}**. Con el título por defecto:
 | **Khipu - Transferencia normal** | Sí |
 | **Khipu - Transferencia simplificada** | Sí |
 | **Khipu - LigoPay** | No |
+| **Khipu - Pago por QR** | No |
 
 - Una fila aparece solo si **tu cuenta Khipu tiene ese medio habilitado** y la casilla
   correspondiente está marcada en **Medios de pago a mostrar**. Por defecto están marcados
@@ -89,6 +90,9 @@ cada uno**, con el nombre **{Título} - {Medio}**. Con el título por defecto:
   de **Módulos → Pagos → Preferencias** de PrestaShop, que es de la plataforma.
 - **En Perú no hay un botón único.** Cada medio que tenga tu cuenta tiene su propia fila
   (por ejemplo, transferencia normal y LigoPay), igual que en Chile.
+- **En Argentina, el QR es su propia fila.** «Khipu - Pago por QR» lleva al comprador a un
+  código QR que escanea con la app de su banco o billetera; la transferencia simplificada
+  aparece aparte, si tu cuenta la tiene.
 - Si Khipu no responde un momento, el checkout sigue mostrando los medios del **último
   resultado bueno**, para que tu tienda no se quede sin Khipu por una caída corta. Si
   nunca se pudo consultar (tienda nueva o credenciales recién cambiadas), no se muestra
@@ -107,8 +111,8 @@ por defecto) y **Redirección** a la derecha.
 
 Dos cosas que conviene saber:
 
-- **Embebido solo vale para la transferencia simplificada.** La transferencia normal y
-  LigoPay siempre redirigen al sitio de Khipu.
+- **Embebido solo vale para la transferencia simplificada.** La transferencia normal,
+  LigoPay y el pago por QR siempre redirigen al sitio de Khipu.
 - El interruptor **solo se puede mover si tu cuenta tiene transferencia simplificada**. Si
   no la tiene, queda atenuado y fijo en Redirección. Que la casilla de la simplificada esté
   marcada o no, no influye.
@@ -264,7 +268,7 @@ a propósito. Los pedidos ya pagados tampoco se ven afectados.
 |---|---|---|
 | Khipu no aparece como medio de pago en el checkout | Credenciales incorrectas, el medio no está habilitado en tu cuenta o está desmarcado en el módulo, o la moneda no está permitida en las *Preferencias de pago* de PrestaShop | Revisa **API Key** e **ID Cobrador**, las casillas de **Medios de pago a mostrar** y las restricciones de moneda en **Módulos → Pagos → Preferencias** |
 | **Ningún** medio de pago aparece en el checkout, ni Khipu ni los demás | El país de la dirección del cliente no está habilitado para los módulos de pago. PrestaShop los filtra por país antes de consultarlos | **Módulos → Pagos → Restricciones por país**: marca los países desde los que vendes. Es configuración de la tienda, no del módulo |
-| Falta una fila, por ejemplo «Khipu - LigoPay» o «Khipu - Transferencia simplificada» | Tu cuenta no tiene ese medio habilitado, o la casilla está desmarcada en el módulo | Revisa **Medios de pago a mostrar**; si la casilla no aparece, pide a **soporte@khipu.com** que habiliten el medio en tu cuenta |
+| Falta una fila, por ejemplo «Khipu - LigoPay», «Khipu - Pago por QR» o «Khipu - Transferencia simplificada» | Tu cuenta no tiene ese medio habilitado, o la casilla está desmarcada en el módulo | Revisa **Medios de pago a mostrar**; si la casilla no aparece, pide a **soporte@khipu.com** que habiliten el medio en tu cuenta |
 | El interruptor de **Modo de pago** no se mueve (queda en Redirección) | Tu cuenta no tiene transferencia simplificada, y el modo embebido solo existe para ese medio | Nada que hacer, o pide habilitar la transferencia simplificada a **soporte@khipu.com** |
 | El cliente pagó pero el pedido sigue en *Esperando pago Khipu* | Tu servidor no recibió o no validó la notificación de Khipu | Verifica que la tienda sea alcanzable por HTTPS desde Internet y que la **Llave secreta** sea exactamente la de tu cuenta (sin espacios) |
 | «Error de conexión con khipu» al ir a pagar | cURL deshabilitado, salida a Internet bloqueada, o API Key inválida | Habilita cURL, permite la salida hacia `payment-api.khipu.com` y revisa la API Key |

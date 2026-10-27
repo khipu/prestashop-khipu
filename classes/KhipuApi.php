@@ -88,7 +88,7 @@ class KhipuApi
      * URL, el llamador trata el pago como fallido.
      *
      * @param array  $data   cuerpo de la respuesta de POST /payments
-     * @param string $ownKey clave propia del medio (transfer_url, ligopay_url, ...)
+     * @param string $ownKey clave propia del medio (transfer_url, ligopay_url, nave_url, ...)
      *
      * @return string|null
      */

@@ -6,7 +6,7 @@ Khipu, qué persiste y cómo se desarrolla y empaqueta.
 Para instalar y operar el módulo, ver [manual-comercio.md](manual-comercio.md).
 
 - **Módulo:** `khipupayment`
-- **Versión:** 4.5.0 (fuente única: `classes/KhipuVersion.php`)
+- **Versión:** 4.5.1 (fuente única: `classes/KhipuVersion.php`)
 - **API de Khipu:** v3 (`https://payment-api.khipu.com/v3`)
 - **Compatibilidad:** PrestaShop 1.7 – 8.x, PHP 7.x/8.x, extensión cURL obligatoria
 
@@ -20,7 +20,7 @@ hooks y aporta controladores propios. Este módulo usa cuatro piezas de la plata
 | Pieza de PrestaShop | Qué hace aquí |
 |---|---|
 | **Hooks** | `paymentOptions` (ofrecer medios de pago), `paymentReturn` (página de confirmación), `displayAdminOrderMainBottom` + `displayAdminOrder` (panel de reversa) |
-| **Front controllers** | `controllers/front/{simplified,manual,ligopay,embedded,validate}.php`, accesibles vía `getModuleLink()` |
+| **Front controllers** | `controllers/front/{simplified,manual,ligopay,nave,embedded,validate}.php`, accesibles vía `getModuleLink()` |
 | **Admin controller** | `controllers/admin/AdminKhipuRefundController.php`, ejecuta la reversa |
 | **`Configuration`** | Almacén clave-valor donde viven credenciales, ajustes (título, descripción, modo, medios) y las cachés |
 
@@ -52,6 +52,7 @@ controllers/front/
   simplified.php                      Medio SIMPLIFIED_TRANSFER (`simplified_transfer_url`); decide si va embebido
   manual.php                          Medio REGULAR_TRANSFER (`transfer_url`)
   ligopay.php                         Medio LIGOPAY (`ligopay_url`)
+  nave.php                            Medio NAVE, QR bancario de Argentina (`nave_url`)
   embedded.php                        Cancelación del pago embebido (POST JSON)
   validate.php                        Retorno del cliente: confirmación o cancelación
 
@@ -71,6 +72,7 @@ views/templates/
 upgrade/upgrade-4.4.0.php             Migración para tiendas ya instaladas
 upgrade/upgrade-4.4.1.php             Sin cambios de esquema (existe porque se exige uno por versión)
 upgrade/upgrade-4.5.0.php             Sin cambios de esquema ni de hooks; los ajustes nuevos no se migran
+upgrade/upgrade-4.5.1.php             Sin cambios de esquema ni de hooks (suma el medio NAVE)
 views/js/khipu-embedded.js            Cliente de Khipu Web (KWS) del pago embebido
 views/img/                            khipu-transferencia-normal.png, khipu-transferencia-simplificada.png
 tests/                                PHPUnit sobre la lógica pura (no se empaqueta)
@@ -92,7 +94,7 @@ Checkout                         Módulo                            Khipu
    │                                │ validateOrder()                │
    │                                │ → pedido en "Esperando pago"   │
    │                                │ POST /v3/payments ────────────►│
-   │                                │◄──── simplified_transfer_url / transfer_url / ligopay_url
+   │                                │◄──── simplified_transfer_url / transfer_url / ligopay_url / nave_url
    │◄─ redirect a Khipu (o página embebida, ver 2.5)                 │
    │                                                                 │
    │ paga en su banco ──────────────────────────────────────────────►│
@@ -117,7 +119,7 @@ Checkout                         Módulo                            Khipu
      (lista fija en `KhipuMethods`, hoy solo `DIRECT_DEBIT`, que no sirve para pagar una
      compra). Esa lista es la del panel: un medio que el módulo no conoce aparece como
      casilla. Para el checkout, `getVisibleMethodIds()` se queda además solo con los que
-     tienen controlador (`REGULAR_TRANSFER`, `SIMPLIFIED_TRANSFER`, `LIGOPAY`): un medio sin
+     tienen controlador (`REGULAR_TRANSFER`, `SIMPLIFIED_TRANSFER`, `LIGOPAY`, `NAVE`): un medio sin
      controlador puede estar marcado y no genera ninguna fila ni rompe nada;
    - las casillas del panel (`KHIPU_ENABLED_METHODS`, ver §4).
 4. Por cada id visible, `getPaymentOptionFor()` arma una fila `PaymentOption`:
@@ -127,16 +129,18 @@ Checkout                         Módulo                            Khipu
    | `REGULAR_TRANSFER` | `manual` | `transfer_url` | `khipu-transferencia-normal.png` |
    | `SIMPLIFIED_TRANSFER` | `simplified` | `simplified_transfer_url` | `khipu-transferencia-simplificada.png` |
    | `LIGOPAY` | `ligopay` | `ligopay_url` | ninguna |
+   | `NAVE` | `nave` | `nave_url` | ninguna |
 
    El nombre de la fila es `KhipuMethods::composeTitle()`: `{Título} - {Medio}` (títulos
-   `Transferencia normal`, `Transferencia simplificada`, `LigoPay`); un título vacío cae a
+   `Transferencia normal`, `Transferencia simplificada`, `LigoPay`, `Pago por QR`); un título vacío cae a
    `Khipu`. Bajo la fila va `hook/info.tpl` con la descripción.
 
 **El módulo no decide por moneda ni por país.** No hay ningún `if` por moneda o país: una
 fila existe si la cuenta tiene el medio y está marcado. Sigue valiendo la restricción de
 monedas, países y grupos de *Preferencias de pago*, que es de PrestaShop (y que los
 controladores vuelven a comprobar, ver §2.2). Perú ya no tiene botón único: cada medio de
-la cuenta tiene su fila.
+la cuenta tiene su fila. Lo mismo en Argentina: una cuenta AR trae `NAVE` (el QR de
+Transferencias 3.0; Nave es el proveedor) y `SIMPLIFIED_TRANSFER`, y cada uno es una fila.
 
 **Caché y tolerancia a fallos.** `getAccountMethods()` guarda la lista en
 `KHIPU_PAYMENT_METHODS_CACHE`: 5 minutos si la respuesta fue buena, 1 minuto si falló (para
@@ -150,7 +154,7 @@ Sin credenciales configuradas no se llama a Khipu. Cuando sí se llama, el techo
 ### 2.2 Creación del pago — `KhipuCheckoutController`
 
 El flujo vive entero en `classes/KhipuCheckoutController.php`. Los controladores
-`simplified.php`, `manual.php` y `ligopay.php` solo declaran su medio (`getMethodId()`) y
+`simplified.php`, `manual.php`, `ligopay.php` y `nave.php` solo declaran su medio (`getMethodId()`) y
 qué clave de la respuesta de Khipu lleva la URL de pago (`getPaymentUrlKey()`); además,
 `simplified.php` decide si va embebido (`usesEmbedded()`).
 
@@ -550,7 +554,7 @@ guarda la selección del formulario.
    cuenta).
 
 `upgrade/upgrade-4.4.0.php` entrega lo mismo a las tiendas ya instaladas (tabla, hooks,
-tab, ajuste por defecto), todo idempotente. `upgrade-4.4.1.php` y `upgrade-4.5.0.php` no
+tab, ajuste por defecto), todo idempotente. `upgrade-4.4.1.php`, `upgrade-4.5.0.php` y `upgrade-4.5.1.php` no
 hacen nada: existen porque `KhipuVersionTest` exige un archivo por versión. En 4.5.0 no se
 migran los ajustes nuevos: mientras no existan, el módulo usa sus valores por defecto
 (título `Khipu`, descripción `Paga con tu banco`, Embebido y todos los medios de la cuenta).

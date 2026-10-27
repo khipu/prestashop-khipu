@@ -13,6 +13,7 @@ class KhipuMethods
     const REGULAR = 'REGULAR_TRANSFER';
     const SIMPLIFIED = 'SIMPLIFIED_TRANSFER';
     const LIGOPAY = 'LIGOPAY';
+    const NAVE = 'NAVE';
 
     /**
      * Etiquetas visibles. Sus claves son además los medios que tienen controlador
@@ -24,6 +25,7 @@ class KhipuMethods
         'REGULAR_TRANSFER' => 'Transferencia normal',
         'SIMPLIFIED_TRANSFER' => 'Transferencia simplificada',
         'LIGOPAY' => 'LigoPay',
+        'NAVE' => 'Pago por QR',
     );
 
     /**

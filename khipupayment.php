@@ -698,7 +698,8 @@ class KhipuPayment extends PaymentModule
 
     /**
      * Fila del checkout para un medio: «{Título} - {Medio}», con la descripción
-     * configurada. LigoPay va sin logo: no hay imagen propia para él.
+     * configurada. LigoPay y el QR (Nave) van sin logo: no hay imagen propia
+     * para ellos.
      *
      * @param string $methodId
      *
@@ -710,6 +711,7 @@ class KhipuPayment extends PaymentModule
             'REGULAR_TRANSFER' => 'manual',
             'SIMPLIFIED_TRANSFER' => 'simplified',
             'LIGOPAY' => 'ligopay',
+            'NAVE' => 'nave',
         );
         $logos = array(
             'REGULAR_TRANSFER' => 'khipu-transferencia-normal.png',

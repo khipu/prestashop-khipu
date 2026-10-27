@@ -212,6 +212,13 @@ class KhipuApiTest extends TestCase
         $this->assertSame('u', KhipuApi::selectRedirectUrl($data, 'ligopay_url'));
     }
 
+    public function testElQrDeArgentinaRedirigeANaveUrl()
+    {
+        $data = array('payment_url' => 'p', 'simplified_transfer_url' => 's', 'nave_url' => 'n');
+        $this->assertSame('n', KhipuApi::selectRedirectUrl($data, 'nave_url'));
+        $this->assertNull(KhipuApi::selectRedirectUrl(array('payment_url' => 'p'), 'nave_url'));
+    }
+
     public function testSinLaClaveDevuelveNull()
     {
         $this->assertNull(KhipuApi::selectRedirectUrl(array('payment_url' => 'p'), 'ligopay_url'));

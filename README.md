@@ -3,7 +3,7 @@
 Módulo oficial de [Khipu](https://khipu.com) para recibir pagos por transferencia en
 PrestaShop, con soporte de reversas (devolución de dinero) desde la ficha del pedido.
 
-- **Módulo:** `khipupayment` · **Versión:** 4.5.0 · **API de Khipu:** v3
+- **Módulo:** `khipupayment` · **Versión:** 4.5.1 · **API de Khipu:** v3
 - **Compatibilidad:** PrestaShop 1.7 – 8.x, PHP con extensión cURL habilitada
 
 ## Documentación
@@ -39,13 +39,15 @@ El checkout muestra **una fila por medio de pago**, con el nombre `{Título} - {
 | **Transferencia normal** | Sí |
 | **Transferencia simplificada** | Sí |
 | **LigoPay** | No |
+| **Pago por QR** (Argentina) | No |
 
 Una fila aparece cuando **tu cuenta Khipu tiene ese medio habilitado** (el módulo lo
 consulta en `paymentMethods`) **y** lo dejaste marcado en el panel de configuración. El
 módulo no aplica reglas por moneda ni por país: lo que decide es tu cuenta. La restricción
 de monedas y países de **Preferencias de pago** de PrestaShop sigue valiendo, porque es de
 la plataforma. En Perú no hay botón único: cada medio que tenga tu cuenta (por ejemplo,
-transferencia normal y LigoPay) tiene su propia fila.
+transferencia normal y LigoPay) tiene su propia fila; en Argentina, el pago por QR y la
+transferencia simplificada también.
 
 Si Khipu no responde un momento, el checkout sigue mostrando los medios del último
 resultado bueno.

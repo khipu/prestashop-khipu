@@ -35,8 +35,8 @@ abstract class KhipuCheckoutController extends ModuleFrontController
     abstract protected function getPaymentUrlKey();
 
     /**
-     * Id del medio en la API de Khipu (REGULAR_TRANSFER, SIMPLIFIED_TRANSFER o
-     * LIGOPAY). La URL del controlador es pública: con esto se comprueba que la
+     * Id del medio en la API de Khipu (REGULAR_TRANSFER, SIMPLIFIED_TRANSFER,
+     * LIGOPAY o NAVE). La URL del controlador es pública: con esto se comprueba que la
      * cuenta y el panel ofrezcan este medio antes de crear nada.
      *
      * @return string
