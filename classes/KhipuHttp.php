@@ -71,6 +71,9 @@ class KhipuHttp
             if ('POST' === $method) {
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+            } elseif ('GET' !== $method) {
+                // DELETE (borrar un pago): sin esto curl enviaría un GET.
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
             }
 
             $responseBody = curl_exec($ch);

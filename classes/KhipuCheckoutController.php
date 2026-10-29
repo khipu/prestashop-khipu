@@ -12,6 +12,7 @@
  */
 
 require_once dirname(__FILE__) . '/KhipuApi.php';
+require_once dirname(__FILE__) . '/KhipuEmbeddedRules.php';
 
 /**
  * Tronco común del checkout de Khipu.
@@ -34,18 +35,117 @@ abstract class KhipuCheckoutController extends ModuleFrontController
     abstract protected function getPaymentUrlKey();
 
     /**
-     * Si este medio de pago se ofrece para la moneda del carro. Tiene que
-     * coincidir con lo que muestra hookPaymentOptions(): la URL del controlador
-     * es pública, y sin esto creaba pedidos con un medio que la tienda no
-     * ofrecía para esa moneda.
+     * Id del medio en la API de Khipu (REGULAR_TRANSFER, SIMPLIFIED_TRANSFER,
+     * LIGOPAY o NAVE). La URL del controlador es pública: con esto se comprueba que la
+     * cuenta y el panel ofrezcan este medio antes de crear nada.
      *
-     * @param string $isoCode
+     * @return string
+     */
+    abstract protected function getMethodId();
+
+    /**
+     * Si el pago se abre embebido en la tienda (Khipu Web) en vez de redirigir
+     * al pagador. Solo la transferencia simplificada lo tiene.
      *
      * @return bool
      */
-    protected function acceptsCurrency($isoCode)
+    protected function usesEmbedded(): bool
     {
-        return true;
+        return false;
+    }
+
+    /**
+     * Si el pedido es del cliente con sesión abierta (también cuenta el de
+     * invitado, que PrestaShop deja en la sesión al terminar la compra).
+     *
+     * Lo usan el retorno desde Khipu (validate) y la cancelación del embebido.
+     *
+     * @return bool
+     */
+    public static function belongsToVisitor(Order $order, Context $context)
+    {
+        $customer = $context->customer;
+
+        return Validate::isLoadedObject($customer) && (int)$customer->id === (int)$order->id_customer;
+    }
+
+    /**
+     * Solo el controlador `resume` retoma un pedido ya creado en vez de crear
+     * uno nuevo con el carro.
+     */
+    protected function resumesOrder(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Vuelve a abrir el modal de un pedido embebido que sigue esperando pago.
+     *
+     * Recargar (F5) o volver con «Atrás» llevaba a un checkout con el carro
+     * vacío —el carro ya tiene pedido y el core lo descarta—, con el pedido
+     * abierto y el pago vivo sin forma de retomarlo. La página del embebido
+     * reemplaza su dirección por esta (history.replaceState), que se identifica
+     * por el pedido y no por el carro.
+     */
+    private function resumeEmbedded()
+    {
+        $link = $this->context->link;
+        $checkout = $link->getPageLink('order', true, null, 'step=1');
+        $reference = Tools::getValue('reference');
+        // Solo un texto: un arreglo se convertiría en un IN (...).
+        $orders = (is_string($reference) && '' !== $reference) ? Order::getByReference($reference) : array();
+
+        if (1 !== count($orders) || !self::belongsToVisitor($orders[0], $this->context)) {
+            Tools::redirect($checkout);
+
+            return;
+        }
+
+        $order = $orders[0];
+        $canceled = (int)Configuration::get('PS_OS_CANCELED');
+
+        if ((int)$order->current_state !== (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+            // Ya pagado (o en otro estado): el retorno normal decide qué mostrar.
+            // Cancelado: no hay nada que retomar.
+            Tools::redirect($canceled === (int)$order->current_state
+                ? $checkout
+                : $link->getModuleLink($this->module->name, 'validate', array(
+                    'return' => 'ok',
+                    'reference' => $order->reference,
+                    'cartId' => (int)$order->id_cart,
+                ), true));
+
+            return;
+        }
+
+        $paymentId = $this->module->rememberedPaymentId($order);
+        $api = new KhipuApi(Configuration::get('KHIPU_API_KEY'));
+        $payment = (null !== $paymentId && $this->module->isEmbeddedActive()) ? $api->getPayment($paymentId) : null;
+
+        // Mismo criterio que la cancelación: el pago es de este pedido y sigue
+        // pendiente.
+        if (!KhipuEmbeddedRules::canCancel($order->reference, true, $payment)) {
+            $this->displayKhipuError(
+                'No se pudo retomar el pago de este pedido. Si ya pagaste, la confirmación llegará a tu correo; si no, vuelve a intentarlo desde el carro.',
+                array(),
+                $checkout
+            );
+
+            return;
+        }
+
+        $fallback = isset($payment['simplified_transfer_url']) ? $payment['simplified_transfer_url'] : '';
+        $this->displayEmbedded(
+            $order,
+            $paymentId,
+            KhipuEmbeddedRules::isHttpsUrl($fallback)
+                ? $fallback
+                : $link->getModuleLink($this->module->name, 'validate', array(
+                    'return' => 'ok',
+                    'reference' => $order->reference,
+                    'cartId' => (int)$order->id_cart,
+                ), true)
+        );
     }
 
     public function initContent()
@@ -55,9 +155,19 @@ abstract class KhipuCheckoutController extends ModuleFrontController
 
         parent::initContent();
 
+        if ($this->resumesOrder()) {
+            $this->resumeEmbedded();
+
+            return;
+        }
+
         $cart = $this->context->cart;
 
-        if (!$this->canPayCart($cart)) {
+        // Un medio que la cuenta no tiene o el comercio desmarcó no se paga por
+        // la URL directa: se corta antes de crear el pedido, igual que si el
+        // carro no se pudiera pagar.
+        if (!in_array($this->getMethodId(), $this->module->getVisibleMethodIds(), true)
+            || !$this->canPayCart($cart)) {
             Tools::redirect($this->context->link->getPageLink('order', true, null, 'step=1'));
 
             return;
@@ -109,8 +219,38 @@ abstract class KhipuCheckoutController extends ModuleFrontController
         $response = $api->createPayment($this->buildPayload($cart, $order));
         $urlKey = $this->getPaymentUrlKey();
 
-        if ($response['ok'] && isset($response['data'][$urlKey])) {
-            Tools::redirect($response['data'][$urlKey]);
+        $redirectUrl = $response['ok'] && is_array($response['data'])
+            ? KhipuApi::selectRedirectUrl(
+                $response['data'],
+                $urlKey
+            )
+            : null;
+
+        // En el embebido la URL del medio va a un href y a window.location
+        // desde el navegador: si no es https no se usa, y se sigue el camino
+        // de error de siempre.
+        if ($redirectUrl && $this->usesEmbedded() && !KhipuEmbeddedRules::isHttpsUrl($redirectUrl)) {
+            $redirectUrl = null;
+        }
+
+        // Se guarda antes de cualquier otra cosa: es lo que permite borrar el
+        // pago si el pedido se cancela. Una respuesta sin éxito no trae pago.
+        if ($response['ok']) {
+            $this->module->rememberPaymentId($order, KhipuEmbeddedRules::paymentIdFrom($response['data']));
+        }
+
+        if ($redirectUrl) {
+            $paymentId = KhipuEmbeddedRules::paymentIdFrom($response['data']);
+
+            // Sin payment_id KWS no puede abrir el pago, pero la URL del medio
+            // sí sirve: se redirige como siempre.
+            if ($this->usesEmbedded() && null !== $paymentId) {
+                $this->displayEmbedded($order, $paymentId, $redirectUrl);
+
+                return;
+            }
+
+            Tools::redirect($redirectUrl);
 
             return;
         }
@@ -121,7 +261,11 @@ abstract class KhipuCheckoutController extends ModuleFrontController
         // y el carro se rehace acá mismo, igual que cuando cancela en Khipu: el
         // botón solo lleva de vuelta al checkout. (El submitReorder del core no
         // sirve: no atiende a invitados.)
-        $this->module->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
+        //
+        // Si Khipu llegó a crear el pago pero no devolvió la URL del medio, se
+        // borra: pagable y sin pedido abierto, pasaba a «Pago aceptado» un
+        // pedido cancelado.
+        $this->module->cancelOpenOrder($order);
         $this->logApiFailure($order, $response, $urlKey);
 
         $message = $response['ok'] ? 'Respuesta no válida de la API de Khipu.' : 'No se pudo procesar el pago con Khipu.';
@@ -140,6 +284,43 @@ abstract class KhipuCheckoutController extends ModuleFrontController
         }
 
         $this->displayKhipuError($message, $errors, $this->context->link->getPageLink('order', true));
+    }
+
+    /**
+     * Página del módulo que abre Khipu Web (KWS) en un modal dentro de la
+     * tienda. El pedido y el pago ya están creados; khipu-embedded.js lee los
+     * data-* del ancla y decide a dónde va el comprador según el resultado.
+     *
+     * @param string $paymentId
+     * @param string $fallbackUrl URL del medio, por si KWS no carga
+     */
+    private function displayEmbedded(Order $order, $paymentId, $fallbackUrl)
+    {
+        $link = $this->context->link;
+
+        $this->registerJavascript(
+            'modules-khipupayment-embedded',
+            'modules/' . $this->module->name . '/views/js/khipu-embedded.js',
+            array('position' => 'bottom', 'priority' => 200, 'version' => KhipuVersion::PLUGIN)
+        );
+
+        $this->context->smarty->assign(array(
+            'payment_id' => $paymentId,
+            // La misma URL de retorno que se le dio a Khipu al crear el pago.
+            'return_url' => $link->getModuleLink($this->module->name, 'validate', array(
+                'return' => 'ok',
+                'reference' => $order->reference,
+                'cartId' => (int)$order->id_cart,
+            )),
+            'resume_url' => $link->getModuleLink($this->module->name, 'resume', array('reference' => $order->reference), true),
+            'fallback_url' => $fallbackUrl,
+            'cancel_url' => $link->getModuleLink($this->module->name, 'embedded', array(), true),
+            'reference' => $order->reference,
+            // No se llama `token`: pisaría el `token` global de PrestaShop.
+            'khipu_token' => Tools::getToken(false),
+            'kws_url' => 'https://js.khipu.com/v1/kws.js',
+        ));
+        $this->setTemplate('module:khipupayment/views/templates/front/embedded.tpl');
     }
 
     /**
@@ -178,11 +359,7 @@ abstract class KhipuCheckoutController extends ModuleFrontController
         // ...pero no la moneda: esa la filtra el hook, y por la URL directa se
         // podía pagar en una moneda que el comercio desmarcó para Khipu. Es la
         // misma comprobación que checkCurrency() de ps_wirepayment.
-        if (!$authorized || !$this->moduleAcceptsCurrency((int)$cart->id_currency)) {
-            return false;
-        }
-
-        return $this->acceptsCurrency(Currency::getCurrencyInstance((int)$cart->id_currency)->iso_code);
+        return $authorized && $this->moduleAcceptsCurrency((int)$cart->id_currency);
     }
 
     /**

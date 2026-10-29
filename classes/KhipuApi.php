@@ -62,6 +62,44 @@ class KhipuApi
     }
 
     /**
+     * @param array|null $methods lista devuelta por getPaymentMethods()
+     * @param string[]   $ids
+     *
+     * @return bool
+     */
+    public static function methodsIncludeAny($methods, array $ids)
+    {
+        if (!is_array($methods)) {
+            return false;
+        }
+
+        foreach ($methods as $method) {
+            if (isset($method['id']) && in_array($method['id'], $ids, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * URL a la que se manda al pagador tras crear el pago: la del medio propio
+     * de la fila elegida. La moneda no decide nada; si Khipu no devolvió esa
+     * URL, el llamador trata el pago como fallido.
+     *
+     * @param array  $data   cuerpo de la respuesta de POST /payments
+     * @param string $ownKey clave propia del medio (transfer_url, ligopay_url, nave_url, ...)
+     *
+     * @return string|null
+     */
+    public static function selectRedirectUrl(array $data, $ownKey)
+    {
+        return (isset($data[$ownKey]) && is_string($data[$ownKey]) && '' !== $data[$ownKey])
+            ? $data[$ownKey]
+            : null;
+    }
+
+    /**
      * GET /v3/merchants/{id}/paymentMethods
      *
      * Devuelve null —y no un array vacío— cuando la consulta falla, para que
@@ -93,6 +131,38 @@ class KhipuApi
     public function createPayment(array $payload)
     {
         return $this->request('POST', '/payments', $payload);
+    }
+
+    /**
+     * GET /v3/payments/{id}
+     *
+     * @param string $paymentId
+     *
+     * @return array|null datos del pago si Khipu respondió 2xx con un objeto; si no, null
+     */
+    public function getPayment($paymentId)
+    {
+        $response = $this->request('GET', '/payments/' . rawurlencode((string) $paymentId));
+
+        if ($response['status'] < 200 || $response['status'] > 299 || empty($response['data'])) {
+            return null;
+        }
+
+        return $response['data'];
+    }
+
+    /**
+     * DELETE /v3/payments/{id}
+     *
+     * @param string $paymentId
+     *
+     * @return int código HTTP de Khipu; 0 si no hubo respuesta
+     */
+    public function deletePayment($paymentId)
+    {
+        $response = $this->request('DELETE', '/payments/' . rawurlencode((string) $paymentId));
+
+        return $response['status'];
     }
 
     /**

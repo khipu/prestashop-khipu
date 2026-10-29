@@ -27,9 +27,8 @@ class KhipuPaymentManualModuleFrontController extends KhipuCheckoutController
         return 'transfer_url';
     }
 
-    /** hookPaymentOptions() solo ofrece la transferencia normal en pesos. */
-    protected function acceptsCurrency($isoCode)
+    protected function getMethodId()
     {
-        return 'CLP' === $isoCode;
+        return 'REGULAR_TRANSFER';
     }
 }

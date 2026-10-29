@@ -53,6 +53,17 @@ en tickets, correos ni capturas de pantalla.
    - **Llave secreta**
    - **Minutos para realizar el pago**: cuánto tiempo esperas el pago antes de cancelar
      el pedido y devolver el stock. Por defecto **360** (6 horas).
+   - **Título**: el nombre que ve el comprador. Por defecto **Khipu**.
+   - **Descripción**: el texto que ve el comprador al elegir Khipu. Por defecto **Paga
+     con tu banco**.
+   - **Modo de pago**: **Embebido** o **Redirección** (ver
+     [Modo de pago](#modo-de-pago-embebido-o-redirección)).
+   - **Medios de pago a mostrar**: las casillas de los medios que tu cuenta tiene
+     habilitados (ver [Medios de pago](#medios-de-pago-que-verás-en-el-checkout)). Esta
+     lista aparece cuando ya guardaste las credenciales. Se omiten los medios que no sirven
+     para pagar una compra (por ejemplo, el débito directo). Si tu cuenta tiene un medio
+     que este módulo todavía no sabe cobrar, verás su casilla pero no aparecerá como fila
+     en el checkout.
 9. Presiona **Guardar**. Listo: Khipu ya aparece como medio de pago en tu tienda.
 
 > **Verifica la instalación con una compra de prueba de monto bajo.** Es la forma más
@@ -61,14 +72,63 @@ en tickets, correos ni capturas de pantalla.
 
 ### Medios de pago que verás en el checkout
 
-El módulo consulta a Khipu qué medios tiene habilitada tu cuenta y muestra solo esos:
+El módulo consulta a Khipu qué medios tiene habilitados tu cuenta y muestra **una fila por
+cada uno**, con el nombre **{Título} - {Medio}**. Con el título por defecto:
 
-- **Paga usando Khipu** (transferencia simplificada): disponible en todas las monedas que
-  tenga habilitada tu cuenta. Es la opción recomendada para el comprador.
-- **Transferencia Normal**: se muestra **solo cuando el carro está en pesos chilenos (CLP)**.
+| Fila en el checkout | Imagen |
+|---|---|
+| **Khipu - Transferencia normal** | Sí |
+| **Khipu - Transferencia simplificada** | Sí |
+| **Khipu - LigoPay** | No |
+| **Khipu - Pago por QR** | No |
 
-Si no aparece ninguno de los dos, revisa las credenciales: con una API Key o un Id de
-cobrador incorrectos, la consulta a Khipu falla y el módulo no ofrece ningún medio de pago.
+- Una fila aparece solo si **tu cuenta Khipu tiene ese medio habilitado** y la casilla
+  correspondiente está marcada en **Medios de pago a mostrar**. Por defecto están marcados
+  todos los que tu cuenta tiene.
+- **Orden:** la transferencia simplificada se muestra siempre primero y la transferencia normal siempre al final, tanto en las casillas de «Medios de pago a mostrar» como en el checkout. Los demás medios, si los hay, quedan en medio en el orden en que Khipu los entrega. Son dos reglas independientes: si tu cuenta solo tiene, por ejemplo, simplificada y normal, salen en ese orden.
+- El módulo **no aplica reglas por moneda ni por país**: lo único que decide es lo que tu
+  cuenta tiene habilitado. Lo que sí sigue valiendo es la restricción de monedas y países
+  de **Módulos → Pagos → Preferencias** de PrestaShop, que es de la plataforma.
+- **En Perú no hay un botón único.** Cada medio que tenga tu cuenta tiene su propia fila
+  (por ejemplo, transferencia normal y LigoPay), igual que en Chile.
+- **En Argentina, el QR es su propia fila.** «Khipu - Pago por QR» lleva al comprador a un
+  código QR que escanea con la app de su banco o billetera; la transferencia simplificada
+  aparece aparte, si tu cuenta la tiene.
+- Si Khipu no responde un momento, el checkout sigue mostrando los medios del **último
+  resultado bueno**, para que tu tienda no se quede sin Khipu por una caída corta. Si
+  nunca se pudo consultar (tienda nueva o credenciales recién cambiadas), no se muestra
+  ninguna fila.
+
+Si no aparece ninguna fila, revisa las credenciales: con una API Key o un Id de cobrador
+incorrectos, la consulta a Khipu falla y el módulo no ofrece ningún medio de pago.
+
+### Modo de pago: Embebido o Redirección
+
+El **Modo de pago** es un interruptor de dos extremos: **Embebido** a la izquierda (el valor
+por defecto) y **Redirección** a la derecha.
+
+- **Embebido** abre Khipu dentro de tu tienda, en una ventana sobre la página de pago.
+- **Redirección** lleva al comprador al sitio de Khipu.
+
+Dos cosas que conviene saber:
+
+- **Embebido solo vale para la transferencia simplificada.** La transferencia normal,
+  LigoPay y el pago por QR siempre redirigen al sitio de Khipu.
+- El interruptor **solo se puede mover si tu cuenta tiene transferencia simplificada**. Si
+  no la tiene, queda atenuado y fijo en Redirección. Que la casilla de la simplificada esté
+  marcada o no, no influye.
+
+Si el modo embebido no logra cargar en 10 segundos, el comprador pasa al sitio de Khipu. Si
+el pago embebido termina en error (incluido el abandono, cuando Khipu Web lo informa
+así), la página muestra el motivo que entrega Khipu (por ejemplo, que no hay saldo
+disponible) y no cambia sola de página, para que el comprador alcance a leerlo. Mientras
+tanto el pedido se cancela, se borra el pago en Khipu y el carro vuelve a quedar armado;
+cuando termina, aparece el enlace «Volver a mi carrito» para que lo intente de nuevo.
+
+> **Seguridad y servicios externos.** El módulo se comunica con la API de Khipu
+> (`https://payment-api.khipu.com`) desde tu servidor. En modo **Embebido**, además, el
+> **navegador del comprador** carga el script `https://js.khipu.com/v1/kws.js`. Si tu
+> tienda usa una política de seguridad de contenido (CSP), permite ese dominio.
 
 ---
 
@@ -76,7 +136,8 @@ cobrador incorrectos, la consulta a Khipu falla y el módulo no ofrece ningún m
 
 1. El cliente elige Khipu en el checkout. PrestaShop crea el pedido en el estado
    **Esperando pago Khipu** y descuenta el stock.
-2. El cliente es redirigido a Khipu para pagar.
+2. El cliente paga en Khipu: redirigido a su sitio o, en modo embebido con la
+   transferencia simplificada, dentro de tu tienda.
 3. Khipu notifica el pago a tu tienda. El módulo verifica la firma, el Id de cobrador y
    el monto; si todo calza, el pedido pasa a **Pago aceptado** y queda registrado el
    identificador del pago de Khipu.
@@ -84,7 +145,9 @@ cobrador incorrectos, la consulta a Khipu falla y el módulo no ofrece ningún m
 
 Casos que no terminan en pago:
 
-- **El cliente cancela en Khipu**: el pedido pasa a **Cancelado** y se le ofrece volver a comprar.
+- **El cliente cancela en Khipu** (o el pago embebido termina en error): el pedido pasa a
+  **Cancelado** y se le ofrece volver a comprar. En el embebido se le muestra antes el
+  motivo del error.
 - **El cliente nunca paga**: el pedido queda en *Esperando pago Khipu* hasta superar los
   minutos configurados; entonces pasa a **Cancelado** y se recupera el stock.
 
@@ -179,6 +242,11 @@ credenciales, tus ajustes y el historial de reversas; desinstalar borra la confi
 Después de actualizar:
 
 - Entra a **Configurar** y verifica que tus credenciales sigan ahí.
+- **Si vienes de una versión anterior a 4.5.0:** los ajustes nuevos (título, descripción,
+  modo de pago y medios marcados) **no se migran**. Vuelve a ingresar el título y la
+  descripción si quieres otros distintos de `Khipu` y `Paga con tu banco`, y revisa los
+  medios marcados (por defecto se ofrecen todos los de tu cuenta). El modo de pago por
+  defecto es Embebido.
 - Confirma la versión en el panel **Información del Módulo**, arriba en la misma pantalla.
 - Si la pantalla queda con estilos rotos o algo no aparece, borra la caché en
   **Parámetros avanzados → Rendimiento → Borrar caché**.
@@ -199,9 +267,10 @@ a propósito. Los pedidos ya pagados tampoco se ven afectados.
 
 | Síntoma | Causa más probable | Qué hacer |
 |---|---|---|
-| Khipu no aparece como medio de pago en el checkout | Credenciales incorrectas, o la moneda del carro no está habilitada en tu cuenta | Revisa **API Key** e **ID Cobrador** en la configuración del módulo y que la moneda del carro esté habilitada en Khipu |
+| Khipu no aparece como medio de pago en el checkout | Credenciales incorrectas, el medio no está habilitado en tu cuenta o está desmarcado en el módulo, o la moneda no está permitida en las *Preferencias de pago* de PrestaShop | Revisa **API Key** e **ID Cobrador**, las casillas de **Medios de pago a mostrar** y las restricciones de moneda en **Módulos → Pagos → Preferencias** |
 | **Ningún** medio de pago aparece en el checkout, ni Khipu ni los demás | El país de la dirección del cliente no está habilitado para los módulos de pago. PrestaShop los filtra por país antes de consultarlos | **Módulos → Pagos → Restricciones por país**: marca los países desde los que vendes. Es configuración de la tienda, no del módulo |
-| Solo aparece «Paga usando Khipu» y no «Transferencia Normal» | Es el comportamiento esperado: la transferencia normal se muestra únicamente en **CLP** | Nada que hacer |
+| Falta una fila, por ejemplo «Khipu - LigoPay», «Khipu - Pago por QR» o «Khipu - Transferencia simplificada» | Tu cuenta no tiene ese medio habilitado, o la casilla está desmarcada en el módulo | Revisa **Medios de pago a mostrar**; si la casilla no aparece, pide a **soporte@khipu.com** que habiliten el medio en tu cuenta |
+| El interruptor de **Modo de pago** no se mueve (queda en Redirección) | Tu cuenta no tiene transferencia simplificada, y el modo embebido solo existe para ese medio | Nada que hacer, o pide habilitar la transferencia simplificada a **soporte@khipu.com** |
 | El cliente pagó pero el pedido sigue en *Esperando pago Khipu* | Tu servidor no recibió o no validó la notificación de Khipu | Verifica que la tienda sea alcanzable por HTTPS desde Internet y que la **Llave secreta** sea exactamente la de tu cuenta (sin espacios) |
 | «Error de conexión con khipu» al ir a pagar | cURL deshabilitado, salida a Internet bloqueada, o API Key inválida | Habilita cURL, permite la salida hacia `payment-api.khipu.com` y revisa la API Key |
 | Pedidos vencidos que no se cancelan solos | La cancelación corre cuando alguien llega al checkout | Espera a la siguiente visita al checkout, o cancela el pedido a mano |

@@ -187,4 +187,93 @@ class KhipuApiTest extends TestCase
         $this->assertLessThan(KhipuRefundService::TIMEOUT, KhipuApi::TIMEOUT);
         $this->assertLessThanOrEqual(KhipuRefundService::CONNECT_TIMEOUT, KhipuApi::CONNECT_TIMEOUT);
     }
+
+    // --- methodsIncludeAny: si la cuenta tiene alguno de los medios pedidos --
+
+    public function testMethodsIncludeAnyEncuentraUnoDeLosMediosPedidos()
+    {
+        $methods = array(array('id' => 'LIGOPAY'), array('id' => 'SIMPLIFIED_TRANSFER'));
+        $this->assertTrue(KhipuApi::methodsIncludeAny($methods, array('REGULAR_TRANSFER', 'LIGOPAY')));
+    }
+
+    public function testMethodsIncludeAnyDevuelveFalseSinNingunoDeLosMediosPedidos()
+    {
+        $methods = array(array('id' => 'SIMPLIFIED_TRANSFER'));
+        $this->assertFalse(KhipuApi::methodsIncludeAny($methods, array('REGULAR_TRANSFER', 'LIGOPAY')));
+        $this->assertFalse(KhipuApi::methodsIncludeAny(null, array('LIGOPAY')));
+        $this->assertFalse(KhipuApi::methodsIncludeAny(array(), array('LIGOPAY')));
+    }
+
+    // --- selectRedirectUrl: sin reglas por moneda ----------------------------
+
+    public function testSeRedirigeALaUrlPropiaAunqueHayaPaymentUrl()
+    {
+        $data = array('ligopay_url' => 'u', 'payment_url' => 'p');
+        $this->assertSame('u', KhipuApi::selectRedirectUrl($data, 'ligopay_url'));
+    }
+
+    public function testElQrDeArgentinaRedirigeANaveUrl()
+    {
+        $data = array('payment_url' => 'p', 'simplified_transfer_url' => 's', 'nave_url' => 'n');
+        $this->assertSame('n', KhipuApi::selectRedirectUrl($data, 'nave_url'));
+        $this->assertNull(KhipuApi::selectRedirectUrl(array('payment_url' => 'p'), 'nave_url'));
+    }
+
+    public function testSinLaClaveDevuelveNull()
+    {
+        $this->assertNull(KhipuApi::selectRedirectUrl(array('payment_url' => 'p'), 'ligopay_url'));
+        $this->assertNull(KhipuApi::selectRedirectUrl(array(), 'transfer_url'));
+    }
+
+    public function testValorVacioONoTextoDevuelveNull()
+    {
+        $this->assertNull(KhipuApi::selectRedirectUrl(array('transfer_url' => ''), 'transfer_url'));
+        $this->assertNull(KhipuApi::selectRedirectUrl(array('transfer_url' => null), 'transfer_url'));
+        $this->assertNull(KhipuApi::selectRedirectUrl(array('transfer_url' => array('x')), 'transfer_url'));
+    }
+
+    public function testRequiredMethodIdsYaNoExiste()
+    {
+        $this->assertFalse(method_exists('KhipuApi', 'requiredMethodIds'));
+    }
+
+    // --- getPayment / deletePayment ------------------------------------------
+
+    public function testGetPaymentDevuelveLosDatosEnUn200()
+    {
+        $spy = array();
+        $api = new KhipuApi('KEY', $this->fakeTransport(array('body' => '{"payment_id":"abc","transaction_id":"T1"}'), $spy));
+
+        $data = $api->getPayment('abc');
+
+        $this->assertSame('T1', $data['transaction_id']);
+        $this->assertSame('GET', $spy['method']);
+        $this->assertSame('https://payment-api.khipu.com/v3/payments/abc', $spy['url']);
+    }
+
+    public function testGetPaymentDevuelveNullEnUn404()
+    {
+        $spy = array();
+        $api = new KhipuApi('KEY', $this->fakeTransport(array('status' => 404, 'body' => '{"message":"not found"}'), $spy));
+
+        $this->assertNull($api->getPayment('abc'));
+    }
+
+    public function testDeletePaymentDevuelveElCodigoHttp()
+    {
+        $spy = array();
+        $api = new KhipuApi('KEY', $this->fakeTransport(array('status' => 204), $spy));
+
+        $this->assertSame(204, $api->deletePayment('abc'));
+        $this->assertSame('DELETE', $spy['method']);
+        $this->assertSame('https://payment-api.khipu.com/v3/payments/abc', $spy['url']);
+    }
+
+    public function testDeletePaymentDevuelveCeroSiNoHuboRespuesta()
+    {
+        $spy = array();
+        $api = new KhipuApi('KEY', $this->fakeTransport(array('status' => 0, 'error' => 'timeout'), $spy));
+
+        $this->assertSame(0, $api->deletePayment('abc'));
+    }
 }

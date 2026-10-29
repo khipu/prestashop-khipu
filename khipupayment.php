@@ -24,6 +24,8 @@ if (!defined('_PS_VERSION_')) {
 
 require_once dirname(__FILE__) . '/classes/KhipuVersion.php';
 require_once dirname(__FILE__) . '/classes/KhipuApi.php';
+require_once dirname(__FILE__) . '/classes/KhipuMethods.php';
+require_once dirname(__FILE__) . '/classes/KhipuEmbeddedRules.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefundRules.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefundService.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefund.php';
@@ -106,6 +108,12 @@ class KhipuPayment extends PaymentModule
         // los demás plugins de Khipu (WooCommerce, Magento, VTEX).
         Configuration::updateValue('KHIPU_REFUND_ORDER_STATE', 'refund');
 
+        // Ajustes del checkout. KHIPU_ENABLED_METHODS no se fija: ausente
+        // significa "todos los medios de la cuenta".
+        Configuration::updateValue('KHIPU_TITLE', 'Khipu');
+        Configuration::updateValue('KHIPU_DESCRIPTION', 'Paga con tu banco');
+        Configuration::updateValue('KHIPU_EMBEDDED', '1');
+
         $this->addOrderStates();
 
         return true;
@@ -177,6 +185,10 @@ class KhipuPayment extends PaymentModule
                 && Configuration::deleteByName('KHIPU_REFUND_ORDER_STATE')
                 && Configuration::deleteByName('KHIPU_WALLET_CACHE')
                 && Configuration::deleteByName('KHIPU_PAYMENT_METHODS_CACHE')
+                && Configuration::deleteByName('KHIPU_TITLE')
+                && Configuration::deleteByName('KHIPU_DESCRIPTION')
+                && Configuration::deleteByName('KHIPU_EMBEDDED')
+                && Configuration::deleteByName('KHIPU_ENABLED_METHODS')
                 && Configuration::deleteByName('KHIPU_UNKNOWN_REF_LOGGED_AT')
                 && $this->unregisterHook('paymentOptions')
                 && $this->unregisterHook('paymentReturn')
@@ -302,12 +314,16 @@ class KhipuPayment extends PaymentModule
      * @param string $name        clave de Configuration
      * @param string $fingerprint huella de la credencial vigente
      *
-     * @return array|null array('value' => lo guardado) si hay una entrada
-     *                    vigente de esta credencial; null si no. El valor
-     *                    guardado puede ser null (un fallo cacheado), por eso
-     *                    va envuelto.
+     * @param bool   $ignoreExpiry devuelve la entrada aunque haya vencido (se
+     *                             sigue exigiendo la misma credencial); para
+     *                             recuperar el `last_good`
+     *
+     * @return array|null array('value' => lo guardado, 'last_good' => el último
+     *                    valor bueno o null) si hay una entrada vigente de esta
+     *                    credencial; null si no. El valor guardado puede ser
+     *                    null (un fallo cacheado), por eso va envuelto.
      */
-    private function readConfigCache($name, $fingerprint)
+    private function readConfigCache($name, $fingerprint, $ignoreExpiry = false)
     {
         $cached = json_decode((string) Configuration::get($name), true);
 
@@ -315,11 +331,17 @@ class KhipuPayment extends PaymentModule
             return null;
         }
 
-        if ($cached['key'] !== $fingerprint || time() >= (int) $cached['expires_at']) {
+        if ($cached['key'] !== $fingerprint) {
+            return null;
+        }
+        if (!$ignoreExpiry && time() >= (int) $cached['expires_at']) {
             return null;
         }
 
-        return array('value' => $cached['value']);
+        return array(
+            'value' => $cached['value'],
+            'last_good' => (isset($cached['last_good']) && is_array($cached['last_good'])) ? $cached['last_good'] : null,
+        );
     }
 
     /**
@@ -329,14 +351,19 @@ class KhipuPayment extends PaymentModule
      *                            solo detecta el cambio)
      * @param mixed  $value       lo que se guarda, serializable a JSON
      * @param int    $ttl         segundos de vigencia
+     * @param array|null $lastGood último valor bueno, si la caché lo lleva
      */
-    private function writeConfigCache($name, $fingerprint, $value, $ttl)
+    private function writeConfigCache($name, $fingerprint, $value, $ttl, $lastGood = null)
     {
-        Configuration::updateValue($name, json_encode(array(
+        $entry = array(
             'key' => $fingerprint,
             'value' => $value,
             'expires_at' => time() + (int) $ttl,
-        )));
+        );
+        if (null !== $lastGood) {
+            $entry['last_good'] = $lastGood;
+        }
+        Configuration::updateValue($name, json_encode($entry));
     }
 
     /**
@@ -589,24 +616,6 @@ class KhipuPayment extends PaymentModule
         return $this->display(__FILE__, 'views/templates/hook/payment_return.tpl');
     }
 
-    private function getPaymentMethod($paymentMethods, $id)
-    {
-        foreach ($paymentMethods as $paymentMethod) {
-            if (strcmp($paymentMethod['id'], $id) == 0) {
-                return $paymentMethod;
-            }
-        }
-        return null;
-    }
-
-    private function addMissingProtocol($url)
-    {
-        if (strpos($url, 'http') !== 0 && strpos($url, '//') !== 0) {
-            return '//' . $url;
-        }
-        return $url;
-    }
-
     /**
      * Si validateOrder() va a partir este carro en varios pedidos.
      *
@@ -667,7 +676,7 @@ class KhipuPayment extends PaymentModule
     public function hookPaymentOptions($params)
     {
         if (!$this->active) {
-            return;
+            return array();
         }
         $this->cancelExpiredOrders();
         // El carro viene en los parámetros del hook; el del contexto es el
@@ -678,27 +687,57 @@ class KhipuPayment extends PaymentModule
         if ($cart instanceof Cart && $this->cartSplitsIntoSeveralOrders($cart)) {
             return [];
         }
-        $paymentMethods = $this->getKhipuPaymentMethods();
-        if ($paymentMethods === null) {
-            return [];
+        // La disponibilidad sale solo de la cuenta y de las casillas del panel;
+        // la moneda y el país los filtra «Preferencias de pago» de PrestaShop.
+        $payment_options = array();
+        foreach ($this->getVisibleMethodIds() as $methodId) {
+            $payment_options[] = $this->getPaymentOptionFor($methodId);
         }
-        $payment_options = [];
-        if ($method = $this->getPaymentMethod($paymentMethods, "SIMPLIFIED_TRANSFER")) {
-            $payment_options[] = $this->getKhipuSimplifiedTransferPayment($method);
-        }
-        switch ($this->context->currency->iso_code) {
-            case "CLP":
-                if ($method = $this->getPaymentMethod($paymentMethods, "REGULAR_TRANSFER")) {
-                    $payment_options[] = $this->getKhipuNormalTransferPayment($method);
-                }
-                break;
-        }
+
         return $payment_options;
     }
 
+    /**
+     * Fila del checkout para un medio: «{Título} - {Medio}», con la descripción
+     * configurada. LigoPay y el QR (Nave) van sin logo: no hay imagen propia
+     * para ellos.
+     *
+     * @param string $methodId
+     *
+     * @return PaymentOption
+     */
+    public function getPaymentOptionFor($methodId)
+    {
+        $controllers = array(
+            'REGULAR_TRANSFER' => 'manual',
+            'SIMPLIFIED_TRANSFER' => 'simplified',
+            'LIGOPAY' => 'ligopay',
+            'NAVE' => 'nave',
+        );
+        $logos = array(
+            'REGULAR_TRANSFER' => 'khipu-transferencia-normal.png',
+            'SIMPLIFIED_TRANSFER' => 'khipu-transferencia-simplificada.png',
+        );
+
+        $this->context->smarty->assign('khipu_description', $this->getDescription());
+
+        $option = new PaymentOption();
+        $option->setCallToActionText(KhipuMethods::composeTitle($this->getTitle(), $methodId))
+            ->setAction($this->context->link->getModuleLink($this->name, $controllers[$methodId], array(), true))
+            ->setAdditionalInformation(
+                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info.tpl')
+            );
+
+        if (isset($logos[$methodId])) {
+            $option->setLogo(Media::getMediaPath(_PS_MODULE_DIR_ . $this->name . '/views/img/' . $logos[$methodId]));
+        }
+
+        return $option;
+    }
 
     /**
-     * Medios de pago habilitados en la cuenta, o null si no se pudo preguntar.
+     * Medios de pago habilitados en la cuenta, o null si no se pudo preguntar
+     * y tampoco hay un resultado bueno anterior.
      *
      * Esta llamada ocurre en cada render del checkout. Con el cURL a mano que
      * había antes —sin timeout— una API lenta colgaba la página de pago hasta
@@ -709,9 +748,15 @@ class KhipuPayment extends PaymentModule
      * cambian muy de vez en cuando) y el fallo 1 minuto, para que mientras
      * Khipu no responde no se cuelgue cada comprador que llega al pago.
      *
+     * Ante un fallo se sirve el último resultado bueno de esta misma cuenta
+     * (queda guardado como `last_good` junto a la caché): un corte de Khipu de
+     * unos minutos no debería vaciar el checkout de una tienda que hace un
+     * momento ofrecía sus medios. Si no hay ninguno, null. Un cambio de
+     * credenciales lo descarta, igual que a la caché.
+     *
      * @return array|null
      */
-    private function getKhipuPaymentMethods()
+    public function getAccountMethods()
     {
         // Sin credenciales no hay nada que preguntar. Antes la llamada salía
         // igual, con la key vacía, en cada render.
@@ -725,69 +770,236 @@ class KhipuPayment extends PaymentModule
 
         $hit = $this->readConfigCache('KHIPU_PAYMENT_METHODS_CACHE', $fingerprint);
         if (null !== $hit) {
-            return $hit['value'];
+            return (null === $hit['value']) ? $hit['last_good'] : $hit['value'];
+        }
+
+        // La entrada vencida de esta misma cuenta aún guarda el último bueno.
+        $stale = $this->readConfigCache('KHIPU_PAYMENT_METHODS_CACHE', $fingerprint, true);
+        $lastGood = (null !== $stale) ? $stale['last_good'] : null;
+        if (null !== $stale && is_array($stale['value'])) {
+            $lastGood = $stale['value'];
         }
 
         $api = new KhipuApi($this->apiKey);
         $methods = $api->getPaymentMethods($this->merchantID);
 
-        $this->writeConfigCache('KHIPU_PAYMENT_METHODS_CACHE', $fingerprint, $methods, (null === $methods) ? 60 : 300);
+        if (null === $methods) {
+            // El fallo se cachea 60 s; el último bueno viaja en la misma entrada.
+            $this->writeConfigCache('KHIPU_PAYMENT_METHODS_CACHE', $fingerprint, null, 60, $lastGood);
+
+            return $lastGood;
+        }
+
+        $this->writeConfigCache('KHIPU_PAYMENT_METHODS_CACHE', $fingerprint, $methods, 300, $methods);
 
         return $methods;
     }
 
+    /**
+     * Título de la fila del checkout; en blanco o sin guardar cae a "Khipu".
+     *
+     * @return string
+     */
+    public function getTitle()
+    {
+        $title = trim((string) Configuration::get('KHIPU_TITLE'));
+
+        return ('' === $title) ? 'Khipu' : $title;
+    }
+
+    /**
+     * Descripción bajo la fila. Sin valor guardado (false/null) usa la de
+     * fábrica; un texto vacío guardado a propósito se respeta.
+     *
+     * @return string
+     */
+    public function getDescription()
+    {
+        $description = Configuration::get('KHIPU_DESCRIPTION');
+        if (false === $description || null === $description) {
+            return 'Paga con tu banco';
+        }
+
+        return (string) $description;
+    }
+
+    /**
+     * Preferencia del comercio por el modo embebido. Ausente = activado.
+     *
+     * @return bool
+     */
+    public function isEmbeddedEnabled()
+    {
+        $value = Configuration::get('KHIPU_EMBEDDED');
+        if (false === $value || null === $value || '' === $value) {
+            return true;
+        }
+
+        return '0' !== (string) $value;
+    }
+
+    /**
+     * Medios de la cuenta que el comercio dejó marcados.
+     *
+     * @return array
+     */
+    public function getVisibleMethodIds()
+    {
+        return KhipuMethods::visibleMethodIds($this->getAccountMethods(), Configuration::get('KHIPU_ENABLED_METHODS'));
+    }
+
+    /**
+     * Si la cuenta soporta el modo embebido (tiene transferencia simplificada).
+     *
+     * @return bool
+     */
+    public function isEmbeddedAvailable()
+    {
+        return KhipuMethods::embeddedAvailable($this->getAccountMethods());
+    }
+
+    /**
+     * Modo embebido efectivo: lo quiere el comercio y la cuenta lo permite.
+     *
+     * @return bool
+     */
+    public function isEmbeddedActive()
+    {
+        return $this->isEmbeddedEnabled() && $this->isEmbeddedAvailable();
+    }
+
+
+    /** Pedidos que una visita al checkout cancela como máximo: cada uno puede costar una llamada a Khipu. */
+    const EXPIRED_BATCH = 25;
 
     public function cancelExpiredOrders()
     {
-        $waiting_period = (int)Configuration::get('KHIPU_MINUTES_TIMEOUT');
+        // Antes, sin KHIPU_MINUTES_TIMEOUT guardado el plazo era 0 y la visita
+        // de cualquier comprador cancelaba todos los pedidos en espera.
+        $waiting_period = KhipuEmbeddedRules::waitingMinutes(Configuration::get('KHIPU_MINUTES_TIMEOUT'));
         $expiration_date = date('Y-m-d H:i:00', strtotime("-$waiting_period minutes"));
 
         $result = Db::getInstance()->executeS(
             'SELECT `id_order` 
         FROM `' . _DB_PREFIX_ . 'orders` 
         WHERE `date_add` < \'' . pSQL($expiration_date) . '\' 
-        AND `current_state` = ' . (int)Configuration::get('PS_OS_KHIPU_OPEN')
+        AND `module` = \'' . pSQL($this->name) . '\' 
+        AND `id_shop` = ' . (int)Context::getContext()->shop->id . ' 
+        AND `current_state` = ' . (int)Configuration::get('PS_OS_KHIPU_OPEN') . ' 
+        ORDER BY `date_add` ASC 
+        LIMIT ' . (int)self::EXPIRED_BATCH
         );
 
         if ($result) {
             foreach ($result as $order_data) {
-                $order_id = (int)$order_data['id_order'];
-                $order = new Order($order_id);
-
-                if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
-                    $this->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
-                }
+                $this->cancelOpenOrder(new Order((int)$order_data['id_order']));
             }
         }
     }
 
-    public function getKhipuSimplifiedTransferPayment($paymentMethod)
+    /**
+     * Guarda el id del pago como nota privada del pedido, para poder borrarlo
+     * si el pedido se cancela. Sin esto un pago tardío revivía el pedido.
+     */
+    public function rememberPaymentId(Order $order, $paymentId)
     {
-        $simplifiedTransfer = new PaymentOption();
-        $simplifiedTransfer->setCallToActionText($this->l('Paga usando Khipu'))
-            ->setAction($this->context->link->getModuleLink($this->name, 'simplified', array(), true))
-            ->setAdditionalInformation(
-                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_simplified.tpl')
-            )
-            ->setLogo($this->addMissingProtocol($paymentMethod['logo_url']));
+        if (null === $paymentId || null === KhipuEmbeddedRules::paymentIdFromNote(KhipuEmbeddedRules::paymentIdNote($paymentId))) {
+            return;
+        }
 
-        return $simplifiedTransfer;
+        $message = new Message();
+        $message->message = KhipuEmbeddedRules::paymentIdNote($paymentId);
+        $message->id_order = (int)$order->id;
+        $message->id_cart = (int)$order->id_cart;
+        $message->id_customer = (int)$order->id_customer;
+        $message->private = 1;
+        $message->add();
     }
 
-
-    public function getKhipuNormalTransferPayment($paymentMethod)
+    /**
+     * @return string|null null si el pedido no tiene el id guardado (pedidos
+     *                     anteriores a esta versión)
+     */
+    public function rememberedPaymentId(Order $order)
     {
-        $normalTransfer = new PaymentOption();
-        $normalTransfer->setCallToActionText($this->l('Transferencia Normal'))
-            ->setAction($this->context->link->getModuleLink($this->name, 'manual', array(), true))
-            ->setAdditionalInformation(
-                $this->context->smarty->fetch('module:khipupayment/views/templates/hook/info_normal.tpl')
-            )
-            ->setLogo($this->addMissingProtocol($paymentMethod['logo_url']));
+        $note = Db::getInstance()->getValue(
+            'SELECT `message` FROM `' . _DB_PREFIX_ . 'message` 
+            WHERE `id_order` = ' . (int)$order->id . ' AND `private` = 1 
+            AND `message` LIKE \'Khipu payment\\\\_id: %\' 
+            ORDER BY `id_message` DESC',
+            false
+        );
 
-        return $normalTransfer;
+        return KhipuEmbeddedRules::paymentIdFromNote($note);
     }
 
+    /**
+     * Cancela un pedido que sigue en espera de pago sin dejar el pago pagable.
+     *
+     * Con el candado que usa la notificación: si el pago llegó mientras tanto,
+     * el pedido ya no está en espera y no se toca. Antes se cancelaba sin
+     * candado y desde una copia vieja del pedido, y la notificación podía
+     * perder contra la cancelación.
+     *
+     * @param Order $order
+     * @param bool  $deletePayment false si quien llama ya borró el pago
+     *
+     * @return bool true si el pedido quedó cancelado por esta llamada; false si
+     *              ya no estaba en espera o Khipu no aceptó borrar el pago (en
+     *              ese caso sigue en espera: la notificación o el vencimiento
+     *              deciden)
+     */
+    public function cancelOpenOrder(Order $order, $deletePayment = true)
+    {
+        $db = Db::getInstance();
+        $lock = KhipuEmbeddedRules::orderLockName(_DB_NAME_, _DB_PREFIX_, (int)$order->id);
+
+        if (1 !== (int)$db->getValue('SELECT GET_LOCK(\'' . pSQL($lock) . '\', 5)', false)) {
+            return false;
+        }
+
+        try {
+            $open = (int)Configuration::get('PS_OS_KHIPU_OPEN');
+            $state = (int)$db->getValue(
+                'SELECT `current_state` FROM `' . _DB_PREFIX_ . 'orders` WHERE `id_order` = ' . (int)$order->id,
+                false
+            );
+
+            if ($state !== $open) {
+                return false;
+            }
+
+            $paymentId = $deletePayment ? $this->rememberedPaymentId($order) : null;
+
+            if (null !== $paymentId) {
+                $api = new KhipuApi(Configuration::get('KHIPU_API_KEY'));
+                $status = $api->deletePayment($paymentId);
+
+                if (!KhipuEmbeddedRules::deleteSucceeded($status)) {
+                    PrestaShopLogger::addLog(
+                        'Khipu: no se pudo borrar el pago del pedido ' . $order->reference
+                            . ' (HTTP ' . (int)$status . '). El pedido sigue en espera de pago.',
+                        2, null, 'Order', (int)$order->id, true
+                    );
+
+                    return false;
+                }
+            }
+
+            Cache::clean('objectmodel_Order_' . (int)$order->id . '_*');
+            $canceledState = (int)Configuration::get('PS_OS_CANCELED');
+            $this->setCurrentOrderState(new Order((int)$order->id), $canceledState);
+
+            // Quien llama sigue usando su objeto (validate.php decide con su
+            // current_state si rehace el carro): sin esto veía el estado viejo
+            // y el comprador volvía a un carro vacío.
+            $order->current_state = $canceledState;
+
+            return true;
+        } finally {
+            $db->getValue('SELECT RELEASE_LOCK(\'' . pSQL($lock) . '\')', false);
+        }
+    }
 
     public function getContent()
     {
@@ -796,6 +1008,14 @@ class KhipuPayment extends PaymentModule
             // solo sus propios campos. Hay que comprobar presencia antes de
             // escribir: Tools::getValue() devuelve false para un campo ausente y
             // trim(false) es '', así que guardar un panel borraría el otro.
+            // Se compara con lo guardado ANTES de actualizar: la selección de
+            // medios que viene en este POST es de la cuenta anterior si cambió.
+            $credentialsChanged = KhipuMethods::credentialsChanged(
+                Configuration::get('KHIPU_API_KEY'),
+                Configuration::get('KHIPU_MERCHANTID'),
+                Tools::getIsset('apiKey') ? trim((string) Tools::getValue('apiKey')) : null,
+                Tools::getIsset('merchantID') ? trim((string) Tools::getValue('merchantID')) : null
+            );
             if (Tools::getIsset('merchantID')) {
                 Configuration::updateValue('KHIPU_MERCHANTID', trim(Tools::getValue('merchantID')));
             }
@@ -814,14 +1034,49 @@ class KhipuPayment extends PaymentModule
                     (Tools::getValue('refundOrderState') === 'refund') ? 'refund' : ''
                 );
             }
-            // Las cachés son de la credencial anterior.
+            // is_string: un `title[]=` malicioso llegaría como array y trim() lo
+            // rechazaría con TypeError en PHP 8.
+            if (is_string(Tools::getValue('title'))) {
+                Configuration::updateValue('KHIPU_TITLE', trim(Tools::getValue('title')));
+            }
+            if (is_string(Tools::getValue('description'))) {
+                Configuration::updateValue('KHIPU_DESCRIPTION', trim(Tools::getValue('description')));
+            }
+            // Una casilla desmarcada no viaja en el POST: embedded_present dice
+            // que el formulario sí la mostró, y entonces su ausencia es un "no".
+            if (Tools::getIsset('embedded_present')) {
+                Configuration::updateValue('KHIPU_EMBEDDED', Tools::getIsset('embedded') ? '1' : '0');
+            }
+            // La caché de la billetera es de la credencial anterior.
+            // La de medios de pago NO se borra: guarda el último resultado bueno
+            // y guardar un panel cualquiera lo perdería justo cuando Khipu esté
+            // caído. Su huella (apiKey|merchantID) ya la descarta si cambian las
+            // credenciales.
             Configuration::deleteByName('KHIPU_WALLET_CACHE');
-            Configuration::deleteByName('KHIPU_PAYMENT_METHODS_CACHE');
 
             $this->merchantID = Configuration::get('KHIPU_MERCHANTID');
             $this->apiKey = Configuration::get('KHIPU_API_KEY');
             $this->secretCode = Configuration::get('KHIPU_SECRETCODE');
             $this->minutesTimeout = Configuration::get('KHIPU_MINUTES_TIMEOUT');
+
+            // Va después de refrescar las credenciales: la lista de medios se
+            // consulta con las vigentes. Igual que `embedded`, una lista vacía
+            // (todas desmarcadas) solo se guarda si el campo se mostró.
+            // Sin lista de la cuenta (Khipu no respondió) no se guarda nada:
+            // normalizarla contra una lista vacía borraría la selección.
+            //
+            // Con otra cuenta la selección enviada no vale: se descarta la
+            // guardada (ausente = todos los medios de la cuenta nueva).
+            if ($credentialsChanged) {
+                Configuration::deleteByName('KHIPU_ENABLED_METHODS');
+            }
+            $accountIds = KhipuMethods::accountMethodIds($this->getAccountMethods());
+            if (!$credentialsChanged && Tools::getIsset('enabledMethods_present') && count($accountIds) > 0) {
+                Configuration::updateValue(
+                    'KHIPU_ENABLED_METHODS',
+                    json_encode(KhipuMethods::normalizeSelection(Tools::getValue('enabledMethods'), $accountIds))
+                );
+            }
         }
 
         $shopDomainSsl = Tools::getShopDomainSsl(true, true);
@@ -838,6 +1093,17 @@ class KhipuPayment extends PaymentModule
             $walletBalanceDisplay = Tools::displayPrice((float) $wallet['balance'], new Currency($idCurrency));
         }
 
+        $accountMethods = $this->getAccountMethods();
+        $savedMethods = Configuration::get('KHIPU_ENABLED_METHODS');
+        $accountMethodsList = array();
+        foreach (KhipuMethods::accountMethodIds($accountMethods) as $methodId) {
+            $accountMethodsList[] = array(
+                'id' => $methodId,
+                'label' => KhipuMethods::label($methodId),
+                'checked' => KhipuMethods::isSelected($methodId, $savedMethods),
+            );
+        }
+
         $params = array(
             'post_url' => $_SERVER['REQUEST_URI'],
             'data_merchantid' => $this->merchantID,
@@ -845,6 +1111,14 @@ class KhipuPayment extends PaymentModule
             'data_secretcode' => $this->secretCode,
             'data_minutesTimeout' => $this->minutesTimeout,
             'data_refundOrderState' => Configuration::get('KHIPU_REFUND_ORDER_STATE'),
+            'data_title' => $this->getTitle(),
+            'data_description' => $this->getDescription(),
+            'data_embedded' => $this->isEmbeddedEnabled(),
+            'embedded_available' => KhipuMethods::embeddedAvailable($accountMethods),
+            'account_methods' => $accountMethodsList,
+            // Hay credenciales pero no hay lista (ni buena anterior): la
+            // plantilla avisa en vez de mostrar una lista vacía sin explicar.
+            'account_methods_error' => (null === $accountMethods) && $this->apiKey && $this->merchantID ? true : false,
             'wallet' => $wallet,
             'wallet_balance_display' => $walletBalanceDisplay,
             'version' => $this->version,

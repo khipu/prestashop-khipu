@@ -15,6 +15,8 @@
  * @license   http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  */
 
+require_once _PS_MODULE_DIR_ . 'khipupayment/classes/KhipuCheckoutController.php';
+
 class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
 {
     public $ssl = true;
@@ -59,7 +61,7 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
             // vuelve desde otro navegador, cancelExpiredOrders lo cancela al vencer.
             // Se comprueba cada pedido y no solo el primero de la colección.
             foreach ($orders as $order) {
-                if (!$this->belongsToVisitor($order)) {
+                if (!KhipuCheckoutController::belongsToVisitor($order, $this->context)) {
                     Tools::redirect(Context::getContext()->link->getPageLink('index', true));
 
                     return;
@@ -67,10 +69,22 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
             }
 
             $canceledState = (int)Configuration::get('PS_OS_CANCELED');
+            $stillOpen = false;
             foreach ($orders as $order) {
-                if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
-                    $this->module->setCurrentOrderState($order, $canceledState);
+                if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')
+                    && !$this->module->cancelOpenOrder($order)
+                ) {
+                    $stillOpen = true;
                 }
+            }
+
+            // Khipu no aceptó borrar el pago (o la notificación llegó justo
+            // ahora): el pedido sigue en espera. Rehacer el carro dejaría
+            // comprar dos veces lo mismo; se vuelve al inicio de la tienda.
+            if ($stillOpen) {
+                Tools::redirect(Context::getContext()->link->getPageLink('index', true));
+
+                return;
             }
 
             // El carro se rehace acá y no con el submitReorder del core, que no
@@ -112,7 +126,7 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
                 // iniciar sesión, y un invitado no tiene con qué: el que pagó
                 // en la app del banco y volvió en otro navegador se quedaba sin
                 // ninguna confirmación.
-                if (!$this->belongsToVisitor($orders[0])) {
+                if (!KhipuCheckoutController::belongsToVisitor($orders[0], $this->context)) {
                     $this->showMessage('received', Context::getContext()->link->getPageLink('history', true));
 
                     return;
@@ -177,18 +191,5 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
             'Khipu: retorno de pago con una referencia que no corresponde a ningún pedido.',
             2, null, 'Order', null, true
         );
-    }
-
-    /**
-     * Si el pedido es del cliente con sesión abierta (también cuenta el de
-     * invitado, que PrestaShop deja en la sesión al terminar la compra).
-     *
-     * @return bool
-     */
-    private function belongsToVisitor(Order $order)
-    {
-        $customer = $this->context->customer;
-
-        return Validate::isLoadedObject($customer) && (int)$customer->id === (int)$order->id_customer;
     }
 }
