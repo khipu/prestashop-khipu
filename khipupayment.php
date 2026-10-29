@@ -25,6 +25,7 @@ if (!defined('_PS_VERSION_')) {
 require_once dirname(__FILE__) . '/classes/KhipuVersion.php';
 require_once dirname(__FILE__) . '/classes/KhipuApi.php';
 require_once dirname(__FILE__) . '/classes/KhipuMethods.php';
+require_once dirname(__FILE__) . '/classes/KhipuEmbeddedRules.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefundRules.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefundService.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefund.php';
@@ -868,27 +869,135 @@ class KhipuPayment extends PaymentModule
     }
 
 
+    /** Pedidos que una visita al checkout cancela como máximo: cada uno puede costar una llamada a Khipu. */
+    const EXPIRED_BATCH = 25;
+
     public function cancelExpiredOrders()
     {
-        $waiting_period = (int)Configuration::get('KHIPU_MINUTES_TIMEOUT');
+        // Antes, sin KHIPU_MINUTES_TIMEOUT guardado el plazo era 0 y la visita
+        // de cualquier comprador cancelaba todos los pedidos en espera.
+        $waiting_period = KhipuEmbeddedRules::waitingMinutes(Configuration::get('KHIPU_MINUTES_TIMEOUT'));
         $expiration_date = date('Y-m-d H:i:00', strtotime("-$waiting_period minutes"));
 
         $result = Db::getInstance()->executeS(
             'SELECT `id_order` 
         FROM `' . _DB_PREFIX_ . 'orders` 
         WHERE `date_add` < \'' . pSQL($expiration_date) . '\' 
-        AND `current_state` = ' . (int)Configuration::get('PS_OS_KHIPU_OPEN')
+        AND `module` = \'' . pSQL($this->name) . '\' 
+        AND `id_shop` = ' . (int)Context::getContext()->shop->id . ' 
+        AND `current_state` = ' . (int)Configuration::get('PS_OS_KHIPU_OPEN') . ' 
+        ORDER BY `date_add` ASC 
+        LIMIT ' . (int)self::EXPIRED_BATCH
         );
 
         if ($result) {
             foreach ($result as $order_data) {
-                $order_id = (int)$order_data['id_order'];
-                $order = new Order($order_id);
+                $this->cancelOpenOrder(new Order((int)$order_data['id_order']));
+            }
+        }
+    }
 
-                if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
-                    $this->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
+    /**
+     * Guarda el id del pago como nota privada del pedido, para poder borrarlo
+     * si el pedido se cancela. Sin esto un pago tardío revivía el pedido.
+     */
+    public function rememberPaymentId(Order $order, $paymentId)
+    {
+        if (null === $paymentId || null === KhipuEmbeddedRules::paymentIdFromNote(KhipuEmbeddedRules::paymentIdNote($paymentId))) {
+            return;
+        }
+
+        $message = new Message();
+        $message->message = KhipuEmbeddedRules::paymentIdNote($paymentId);
+        $message->id_order = (int)$order->id;
+        $message->id_cart = (int)$order->id_cart;
+        $message->id_customer = (int)$order->id_customer;
+        $message->private = 1;
+        $message->add();
+    }
+
+    /**
+     * @return string|null null si el pedido no tiene el id guardado (pedidos
+     *                     anteriores a esta versión)
+     */
+    public function rememberedPaymentId(Order $order)
+    {
+        $note = Db::getInstance()->getValue(
+            'SELECT `message` FROM `' . _DB_PREFIX_ . 'message` 
+            WHERE `id_order` = ' . (int)$order->id . ' AND `private` = 1 
+            AND `message` LIKE \'Khipu payment\\\\_id: %\' 
+            ORDER BY `id_message` DESC',
+            false
+        );
+
+        return KhipuEmbeddedRules::paymentIdFromNote($note);
+    }
+
+    /**
+     * Cancela un pedido que sigue en espera de pago sin dejar el pago pagable.
+     *
+     * Con el candado que usa la notificación: si el pago llegó mientras tanto,
+     * el pedido ya no está en espera y no se toca. Antes se cancelaba sin
+     * candado y desde una copia vieja del pedido, y la notificación podía
+     * perder contra la cancelación.
+     *
+     * @param Order $order
+     * @param bool  $deletePayment false si quien llama ya borró el pago
+     *
+     * @return bool true si el pedido quedó cancelado por esta llamada; false si
+     *              ya no estaba en espera o Khipu no aceptó borrar el pago (en
+     *              ese caso sigue en espera: la notificación o el vencimiento
+     *              deciden)
+     */
+    public function cancelOpenOrder(Order $order, $deletePayment = true)
+    {
+        $db = Db::getInstance();
+        $lock = KhipuEmbeddedRules::orderLockName(_DB_NAME_, _DB_PREFIX_, (int)$order->id);
+
+        if (1 !== (int)$db->getValue('SELECT GET_LOCK(\'' . pSQL($lock) . '\', 5)', false)) {
+            return false;
+        }
+
+        try {
+            $open = (int)Configuration::get('PS_OS_KHIPU_OPEN');
+            $state = (int)$db->getValue(
+                'SELECT `current_state` FROM `' . _DB_PREFIX_ . 'orders` WHERE `id_order` = ' . (int)$order->id,
+                false
+            );
+
+            if ($state !== $open) {
+                return false;
+            }
+
+            $paymentId = $deletePayment ? $this->rememberedPaymentId($order) : null;
+
+            if (null !== $paymentId) {
+                $api = new KhipuApi(Configuration::get('KHIPU_API_KEY'));
+                $status = $api->deletePayment($paymentId);
+
+                if (!KhipuEmbeddedRules::deleteSucceeded($status)) {
+                    PrestaShopLogger::addLog(
+                        'Khipu: no se pudo borrar el pago del pedido ' . $order->reference
+                            . ' (HTTP ' . (int)$status . '). El pedido sigue en espera de pago.',
+                        2, null, 'Order', (int)$order->id, true
+                    );
+
+                    return false;
                 }
             }
+
+            Cache::clean('objectmodel_Order_' . (int)$order->id . '_*');
+            $canceledState = (int)Configuration::get('PS_OS_CANCELED');
+            $this->setCurrentOrderState(new Order((int)$order->id), $canceledState);
+
+            // Quien llama sigue usando su objeto (validate.php decide con su
+            // current_state si rehace el carro): sin esto veía el estado viejo
+            // y el comprador volvía a un carro vacío.
+            $order->current_state = $canceledState;
+
+            return true;
+        } finally {
+            $db->getValue('SELECT RELEASE_LOCK(\'' . pSQL($lock) . '\')', false);
         }
     }
 

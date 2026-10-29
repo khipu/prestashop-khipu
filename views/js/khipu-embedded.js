@@ -17,6 +17,12 @@
     var d = root.dataset;
     var started = false;
 
+    // Recargar o volver con «Atrás» no puede caer en el carro ya consumido: la
+    // dirección pasa a la que retoma este pedido (mismo origen, o no se toca).
+    if (d.resumeUrl && window.history && typeof window.history.replaceState === 'function') {
+        try { window.history.replaceState(null, '', d.resumeUrl); } catch (e) { /* queda la dirección actual */ }
+    }
+
     function go(url) { if (url) { window.location.href = url; } }
     // El servidor solo entrega una URL https; si no lo fuera, el retorno normal.
     function fallback() {

@@ -32,6 +32,100 @@ class KhipuEmbeddedRules
     }
 
     /**
+     * Nota privada del pedido donde queda el id del pago de Khipu. El pedido
+     * no lo guarda hasta que llega la notificación, y sin él no hay cómo
+     * borrar el pago al cancelar el pedido.
+     *
+     * @param string $paymentId
+     *
+     * @return string
+     */
+    public static function paymentIdNote($paymentId)
+    {
+        return 'Khipu payment_id: ' . $paymentId;
+    }
+
+    /**
+     * @param mixed $note
+     *
+     * @return string|null el id, o null si el texto no es una nota del módulo
+     */
+    public static function paymentIdFromNote($note)
+    {
+        if (is_string($note) && preg_match('/^Khipu payment_id: ([A-Za-z0-9_-]{1,64})$/', trim($note), $m)) {
+            return $m[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Nombre del candado que serializa lo que cambia el estado de un pedido
+     * (la notificación y las cancelaciones). Es uno solo para que se esperen.
+     *
+     * @param string $dbName
+     * @param string $dbPrefix
+     * @param int    $idOrder
+     *
+     * @return string
+     */
+    public static function orderLockName($dbName, $dbPrefix, $idOrder)
+    {
+        return 'khipu_notify_' . md5($dbName . $dbPrefix) . '_' . (int) $idOrder;
+    }
+
+    /**
+     * Minutos de espera de un pedido sin pagar. Un valor ausente, cero o
+     * negativo no puede ser un plazo: con 0 vencía todo pedido al instante.
+     *
+     * @param mixed $configured
+     *
+     * @return int
+     */
+    public static function waitingMinutes($configured)
+    {
+        $minutes = (int) $configured;
+
+        return $minutes > 0 ? $minutes : 360;
+    }
+
+    /**
+     * Qué hacer con una notificación ya firmada, según lo que dice Khipu del
+     * pago (GET /payments/{id}). La firma prueba que el aviso es de Khipu, no
+     * que el pago esté hecho: Khipu documenta avisos de «cobro generado» y
+     * «pago en error» con el mismo objeto, y cada uno marcaría el pedido como
+     * pagado sin dinero.
+     *
+     * @param array|null $payment            lo que devolvió KhipuApi::getPayment()
+     * @param string     $orderReference
+     *
+     * @return string 'paid'   marcar pagado
+     *                'ignore' el pago existe y aún no está hecho: no hay nada que
+     *                         hacer (llegará otro aviso cuando se pague)
+     *                'retry'  no se pudo confirmar: responder 500 para que Khipu reintente
+     *                'reject' el pago no es el de este pedido
+     */
+    public static function notificationVerdict($payment, $orderReference)
+    {
+        if (!is_array($payment)) {
+            return 'retry';
+        }
+
+        if (!isset($payment['transaction_id']) || !is_string($payment['transaction_id'])
+            || '' === $orderReference || $payment['transaction_id'] !== $orderReference) {
+            return 'reject';
+        }
+
+        $status = isset($payment['status']) && is_string($payment['status']) ? $payment['status'] : '';
+
+        if ('done' === $status) {
+            return 'paid';
+        }
+
+        return 'pending' === $status ? 'ignore' : 'retry';
+    }
+
+    /**
      * Si la URL del medio se puede usar de respaldo en el embebido.
      *
      * Termina en un href y en window.location: el escape de Smarty no impide

@@ -85,6 +85,7 @@ cada uno**, con el nombre **{Título} - {Medio}**. Con el título por defecto:
 - Una fila aparece solo si **tu cuenta Khipu tiene ese medio habilitado** y la casilla
   correspondiente está marcada en **Medios de pago a mostrar**. Por defecto están marcados
   todos los que tu cuenta tiene.
+- **Orden:** la transferencia simplificada se muestra siempre primero y la transferencia normal siempre al final, tanto en las casillas de «Medios de pago a mostrar» como en el checkout. Los demás medios, si los hay, quedan en medio en el orden en que Khipu los entrega. Son dos reglas independientes: si tu cuenta solo tiene, por ejemplo, simplificada y normal, salen en ese orden.
 - El módulo **no aplica reglas por moneda ni por país**: lo único que decide es lo que tu
   cuenta tiene habilitado. Lo que sí sigue valiendo es la restricción de monedas y países
   de **Módulos → Pagos → Preferencias** de PrestaShop, que es de la plataforma.

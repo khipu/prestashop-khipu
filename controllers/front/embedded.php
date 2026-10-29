@@ -97,19 +97,12 @@ class KhipuPaymentEmbeddedModuleFrontController extends ModuleFrontController
         }
 
         // Mientras se hablaba con Khipu otra petición (un segundo clic,
-        // cancelExpiredOrders) pudo cambiar el pedido: se relee de la base,
-        // sin caché, y si ya no está abierto no se cancela otra vez ni se
-        // rehace el carro de nuevo.
-        $currentState = (int)Db::getInstance()->getValue(
-            'SELECT `current_state` FROM `' . _DB_PREFIX_ . 'orders` WHERE `id_order` = ' . (int)$order->id,
-            false
-        );
-
-        if ($currentState !== (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
+        // cancelExpiredOrders) pudo cambiar el pedido: cancelOpenOrder lo relee
+        // con el candado y, si ya no está abierto, no lo cancela otra vez ni se
+        // rehace el carro de nuevo. El pago ya se borró arriba.
+        if (!$this->module->cancelOpenOrder($order, false)) {
             $this->respond(false, $fallback);
         }
-
-        $this->module->setCurrentOrderState($order, (int)Configuration::get('PS_OS_CANCELED'));
 
         // Igual que el retorno con return=cancel: no se le pisa a la sesión un
         // carro propio con productos, y el que ya tiene pedido no cuenta.

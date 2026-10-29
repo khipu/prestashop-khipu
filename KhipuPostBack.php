@@ -17,6 +17,7 @@
 
 require_once dirname(__FILE__) . '/classes/KhipuApi.php';
 require_once dirname(__FILE__) . '/classes/KhipuRefund.php';
+require_once dirname(__FILE__) . '/classes/KhipuEmbeddedRules.php';
 
 class KhipuPostback
 {
@@ -78,13 +79,19 @@ class KhipuPostback
             exit('More than one order with the same reference ' . $reference);
         }
 
+        // La referencia es la de cualquier pedido de la tienda: una notificación
+        // firmada no puede dar por pagado el de otro método de pago.
+        if ('khipupayment' !== (string)$orders[0]->module) {
+            exit('Order ' . $reference . ' was not placed with Khipu');
+        }
+
         // Khipu reintenta mientras no recibe respuesta, así que dos
         // notificaciones del mismo pago pueden llegar a la vez. Cada paso de
         // abajo es «mirar y después escribir»: sin el candado, las dos veían
         // que faltaba el pago y lo registraban dos veces (dos filas, el doble
         // en total_paid_real, dos «Pago aceptado» con su correo).
         $idOrder = (int)$orders[0]->id;
-        $lock = 'khipu_notify_' . md5(_DB_NAME_ . _DB_PREFIX_) . '_' . $idOrder;
+        $lock = KhipuEmbeddedRules::orderLockName(_DB_NAME_, _DB_PREFIX_, $idOrder);
         $db = Db::getInstance();
 
         if (1 !== (int)$db->getValue('SELECT GET_LOCK(\'' . pSQL($lock) . '\', ' . self::LOCK_TIMEOUT . ')', false)) {
@@ -131,6 +138,26 @@ class KhipuPostback
                 . '] [Payment ReceiverId: ' . $paymentResponse['receiver_id']
                 . '] [Order Total: ' . $orderTotal
                 . '] [Payment Amount: ' . $paymentResponse['amount'] . ']');
+        }
+
+        // La firma prueba que el aviso es de Khipu, no que el pago esté hecho:
+        // se confirma con Khipu antes de marcar nada.
+        $api = new KhipuApi(Configuration::get('KHIPU_API_KEY'));
+        $verdict = KhipuEmbeddedRules::notificationVerdict(
+            $api->getPayment((string)$paymentResponse['payment_id']),
+            (string)$order->reference
+        );
+
+        if ('retry' === $verdict) {
+            return array(500, 'Payment status could not be confirmed, retry later');
+        }
+
+        if ('reject' === $verdict) {
+            return array(400, 'Notification rejected [Payment does not belong to order ' . $order->reference . ']');
+        }
+
+        if ('ignore' === $verdict) {
+            return array(200, 'Payment not completed yet, nothing to do');
         }
 
         // Si algo falla al registrar el pago se responde 500 para que Khipu

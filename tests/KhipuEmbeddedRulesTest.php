@@ -103,4 +103,85 @@ class KhipuEmbeddedRulesTest extends TestCase
         $this->assertFalse(KhipuEmbeddedRules::isHttpsUrl(null));
         $this->assertFalse(KhipuEmbeddedRules::isHttpsUrl(array('https://khipu.com')));
     }
+
+    // --- nota con el id del pago: base para borrarlo al cancelar el pedido ---
+
+    public function testLaNotaDelPagoSeLeeDeVuelta()
+    {
+        $note = KhipuEmbeddedRules::paymentIdNote('aB3dE5-gH_7');
+
+        $this->assertSame('aB3dE5-gH_7', KhipuEmbeddedRules::paymentIdFromNote($note));
+    }
+
+    public function testUnaNotaAjenaONoTextoNoDaIdDePago()
+    {
+        $this->assertNull(KhipuEmbeddedRules::paymentIdFromNote('El cliente pidió envío rápido'));
+        $this->assertNull(KhipuEmbeddedRules::paymentIdFromNote('Khipu payment_id: ../../x'));
+        $this->assertNull(KhipuEmbeddedRules::paymentIdFromNote('Khipu payment_id: '));
+        $this->assertNull(KhipuEmbeddedRules::paymentIdFromNote(null));
+        $this->assertNull(KhipuEmbeddedRules::paymentIdFromNote(array('Khipu payment_id: abc')));
+    }
+
+    // --- waitingMinutes: sin plazo guardado no se cancela todo al instante ---
+
+    public function testSinPlazoGuardadoSeUsanLos360MinutosPorDefecto()
+    {
+        $this->assertSame(360, KhipuEmbeddedRules::waitingMinutes(false));
+        $this->assertSame(360, KhipuEmbeddedRules::waitingMinutes(null));
+        $this->assertSame(360, KhipuEmbeddedRules::waitingMinutes(''));
+        $this->assertSame(360, KhipuEmbeddedRules::waitingMinutes('0'));
+        $this->assertSame(360, KhipuEmbeddedRules::waitingMinutes(-5));
+    }
+
+    public function testUnPlazoValidoSeRespeta()
+    {
+        $this->assertSame(30, KhipuEmbeddedRules::waitingMinutes('30'));
+        $this->assertSame(1440, KhipuEmbeddedRules::waitingMinutes(1440));
+    }
+
+    // --- orderLockName: notificación y cancelaciones esperan el mismo candado
+
+    public function testElCandadoEsElMismoParaElMismoPedidoYDistintoEntrePedidos()
+    {
+        $a = KhipuEmbeddedRules::orderLockName('db', 'ps_', 7);
+
+        $this->assertSame($a, KhipuEmbeddedRules::orderLockName('db', 'ps_', '7'));
+        $this->assertNotSame($a, KhipuEmbeddedRules::orderLockName('db', 'ps_', 8));
+        $this->assertNotSame($a, KhipuEmbeddedRules::orderLockName('otra', 'ps_', 7));
+        $this->assertLessThanOrEqual(64, strlen($a));
+    }
+
+    // --- notificationVerdict: el aviso firmado no prueba que el pago esté hecho
+
+    public function testSoloUnPagoDoneDelPedidoSeMarcaPagado()
+    {
+        $payment = array('transaction_id' => 'ABCDEF', 'status' => 'done');
+
+        $this->assertSame('paid', KhipuEmbeddedRules::notificationVerdict($payment, 'ABCDEF'));
+    }
+
+    public function testUnPagoPendienteSeIgnoraSinReintento()
+    {
+        $payment = array('transaction_id' => 'ABCDEF', 'status' => 'pending');
+
+        $this->assertSame('ignore', KhipuEmbeddedRules::notificationVerdict($payment, 'ABCDEF'));
+    }
+
+    public function testSinRespuestaDeKhipuOConEstadoDesconocidoSePideReintento()
+    {
+        $this->assertSame('retry', KhipuEmbeddedRules::notificationVerdict(null, 'ABCDEF'));
+        $this->assertSame('retry', KhipuEmbeddedRules::notificationVerdict('x', 'ABCDEF'));
+        $this->assertSame('retry', KhipuEmbeddedRules::notificationVerdict(array('transaction_id' => 'ABCDEF'), 'ABCDEF'));
+        $this->assertSame('retry', KhipuEmbeddedRules::notificationVerdict(
+            array('transaction_id' => 'ABCDEF', 'status' => 'verifying'), 'ABCDEF'));
+    }
+
+    public function testUnPagoDeOtroPedidoSeRechaza()
+    {
+        $payment = array('transaction_id' => 'OTRO', 'status' => 'done');
+
+        $this->assertSame('reject', KhipuEmbeddedRules::notificationVerdict($payment, 'ABCDEF'));
+        $this->assertSame('reject', KhipuEmbeddedRules::notificationVerdict(array('status' => 'done'), 'ABCDEF'));
+        $this->assertSame('reject', KhipuEmbeddedRules::notificationVerdict($payment, ''));
+    }
 }

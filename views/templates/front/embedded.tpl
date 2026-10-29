@@ -22,6 +22,7 @@
          data-payment-id="{$payment_id|escape:'htmlall':'UTF-8'}"
          data-return-url="{$return_url|escape:'htmlall':'UTF-8'}"
          data-fallback-url="{$fallback_url|escape:'htmlall':'UTF-8'}"
+         data-resume-url="{$resume_url|escape:'htmlall':'UTF-8'}"
          data-cancel-url="{$cancel_url|escape:'htmlall':'UTF-8'}"
          data-reference="{$reference|escape:'htmlall':'UTF-8'}"
          data-token="{$khipu_token|escape:'htmlall':'UTF-8'}"

@@ -74,9 +74,10 @@ class KhipuMethods
     }
 
     /**
-     * Ids únicos de la cuenta, en el orden en que Khipu los devuelve, sin los
-     * excluidos. Un medio que el módulo no conoce se incluye igual (aparece en el
-     * panel); si no tiene controlador, no genera ninguna fila en el checkout
+     * Ids únicos de la cuenta, sin los excluidos, en el orden de visualización
+     * (ver sortForDisplay(): simplificada primero, normal al final, el resto en el
+     * orden en que Khipu los devuelve). Un medio que el módulo no conoce se incluye
+     * igual (aparece en el panel); si no tiene controlador, no genera ninguna fila en el checkout
      * (ver visibleMethodIds()).
      *
      * @param array|null $methods lista de KhipuApi::getPaymentMethods()
@@ -100,7 +101,37 @@ class KhipuMethods
             $ids[] = $id;
         }
 
-        return $ids;
+        return self::sortForDisplay($ids);
+    }
+
+    /**
+     * Orden en que se muestran los medios, tanto en las casillas del panel como
+     * en las filas del checkout: la transferencia simplificada primero y la
+     * transferencia normal (manual) siempre al final. Son dos reglas
+     * independientes: si la cuenta solo tiene esas dos, queda simplificada y
+     * normal; si tiene otros, quedan en medio en el orden en que Khipu los
+     * devuelve. Orden estable: no se reordena nada más.
+     *
+     * @param array $ids
+     *
+     * @return array
+     */
+    private static function sortForDisplay(array $ids)
+    {
+        $first = array();
+        $middle = array();
+        $last = array();
+        foreach ($ids as $id) {
+            if ($id === self::SIMPLIFIED) {
+                $first[] = $id;
+            } elseif ($id === self::REGULAR) {
+                $last[] = $id;
+            } else {
+                $middle[] = $id;
+            }
+        }
+
+        return array_merge($first, $middle, $last);
     }
 
     /**

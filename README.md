@@ -3,7 +3,7 @@
 Módulo oficial de [Khipu](https://khipu.com) para recibir pagos por transferencia en
 PrestaShop, con soporte de reversas (devolución de dinero) desde la ficha del pedido.
 
-- **Módulo:** `khipupayment` · **Versión:** 4.5.1 · **API de Khipu:** v3
+- **Módulo:** `khipupayment` · **Versión:** 4.5.0 · **API de Khipu:** v3
 - **Compatibilidad:** PrestaShop 1.7 – 8.x, PHP con extensión cURL habilitada
 
 ## Documentación

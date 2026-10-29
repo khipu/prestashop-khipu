@@ -69,10 +69,22 @@ class KhipuPaymentValidateModuleFrontController extends ModuleFrontController
             }
 
             $canceledState = (int)Configuration::get('PS_OS_CANCELED');
+            $stillOpen = false;
             foreach ($orders as $order) {
-                if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')) {
-                    $this->module->setCurrentOrderState($order, $canceledState);
+                if ($order->current_state == (int)Configuration::get('PS_OS_KHIPU_OPEN')
+                    && !$this->module->cancelOpenOrder($order)
+                ) {
+                    $stillOpen = true;
                 }
+            }
+
+            // Khipu no aceptó borrar el pago (o la notificación llegó justo
+            // ahora): el pedido sigue en espera. Rehacer el carro dejaría
+            // comprar dos veces lo mismo; se vuelve al inicio de la tienda.
+            if ($stillOpen) {
+                Tools::redirect(Context::getContext()->link->getPageLink('index', true));
+
+                return;
             }
 
             // El carro se rehace acá y no con el submitReorder del core, que no

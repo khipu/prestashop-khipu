@@ -6,7 +6,7 @@ Khipu, qué persiste y cómo se desarrolla y empaqueta.
 Para instalar y operar el módulo, ver [manual-comercio.md](manual-comercio.md).
 
 - **Módulo:** `khipupayment`
-- **Versión:** 4.5.1 (fuente única: `classes/KhipuVersion.php`)
+- **Versión:** 4.5.0 (fuente única: `classes/KhipuVersion.php`)
 - **API de Khipu:** v3 (`https://payment-api.khipu.com/v3`)
 - **Compatibilidad:** PrestaShop 1.7 – 8.x, PHP 7.x/8.x, extensión cURL obligatoria
 
@@ -72,7 +72,6 @@ views/templates/
 upgrade/upgrade-4.4.0.php             Migración para tiendas ya instaladas
 upgrade/upgrade-4.4.1.php             Sin cambios de esquema (existe porque se exige uno por versión)
 upgrade/upgrade-4.5.0.php             Sin cambios de esquema ni de hooks; los ajustes nuevos no se migran
-upgrade/upgrade-4.5.1.php             Sin cambios de esquema ni de hooks (suma el medio NAVE)
 views/js/khipu-embedded.js            Cliente de Khipu Web (KWS) del pago embebido
 views/img/                            khipu-transferencia-normal.png, khipu-transferencia-simplificada.png
 tests/                                PHPUnit sobre la lógica pura (no se empaqueta)
@@ -117,7 +116,7 @@ Checkout                         Módulo                            Khipu
      `GET /v3/merchants/{KHIPU_MERCHANTID}/paymentMethods`. `KhipuMethods::accountMethodIds()`
      devuelve todos sus ids, sin repetir y en el orden de Khipu, **menos los excluidos**
      (lista fija en `KhipuMethods`, hoy solo `DIRECT_DEBIT`, que no sirve para pagar una
-     compra). Esa lista es la del panel: un medio que el módulo no conoce aparece como
+     compra). **Orden de visualización** (`KhipuMethods::sortForDisplay()`): `SIMPLIFIED_TRANSFER` primero, `REGULAR_TRANSFER` al final y el resto en medio, en el orden de Khipu; son dos reglas independientes. Esa lista es la del panel: un medio que el módulo no conoce aparece como
      casilla. Para el checkout, `getVisibleMethodIds()` se queda además solo con los que
      tienen controlador (`REGULAR_TRANSFER`, `SIMPLIFIED_TRANSFER`, `LIGOPAY`, `NAVE`): un medio sin
      controlador puede estar marcado y no genera ninguna fila ni rompe nada;
@@ -554,7 +553,7 @@ guarda la selección del formulario.
    cuenta).
 
 `upgrade/upgrade-4.4.0.php` entrega lo mismo a las tiendas ya instaladas (tabla, hooks,
-tab, ajuste por defecto), todo idempotente. `upgrade-4.4.1.php`, `upgrade-4.5.0.php` y `upgrade-4.5.1.php` no
+tab, ajuste por defecto), todo idempotente. `upgrade-4.4.1.php` y `upgrade-4.5.0.php` no
 hacen nada: existen porque `KhipuVersionTest` exige un archivo por versión. En 4.5.0 no se
 migran los ajustes nuevos: mientras no existan, el módulo usa sus valores por defecto
 (título `Khipu`, descripción `Paga con tu banco`, Embebido y todos los medios de la cuenta).

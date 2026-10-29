@@ -44,7 +44,7 @@ class KhipuMethodsTest extends TestCase
             array('id' => 'OTRO'),
         );
 
-        $this->assertSame(array('LIGOPAY', 'REGULAR_TRANSFER', 'OTRO'), KhipuMethods::accountMethodIds($methods));
+        $this->assertSame(array('LIGOPAY', 'OTRO', 'REGULAR_TRANSFER'), KhipuMethods::accountMethodIds($methods));
     }
 
     public function testDirectDebitSeOmiteDeLosIdsDeLaCuenta()
@@ -56,8 +56,8 @@ class KhipuMethodsTest extends TestCase
             array('id' => 'SIMPLIFIED_TRANSFER', 'name' => 'SIMPLIFIED_TRANSFER', 'logo_url' => 'https://s3.amazonaws.com/y.png'),
         );
 
-        $this->assertSame(array('REGULAR_TRANSFER', 'SIMPLIFIED_TRANSFER'), KhipuMethods::accountMethodIds($methods));
-        $this->assertSame(array('REGULAR_TRANSFER', 'SIMPLIFIED_TRANSFER'), KhipuMethods::visibleMethodIds($methods, null));
+        $this->assertSame(array('SIMPLIFIED_TRANSFER', 'REGULAR_TRANSFER'), KhipuMethods::accountMethodIds($methods));
+        $this->assertSame(array('SIMPLIFIED_TRANSFER', 'REGULAR_TRANSFER'), KhipuMethods::visibleMethodIds($methods, null));
     }
 
     public function testElementosSinIdOMalFormadosSeIgnoran()
@@ -115,13 +115,84 @@ class KhipuMethodsTest extends TestCase
         $this->assertFalse(KhipuMethods::embeddedAvailable(null));
     }
 
+    // --- orden de visualización ---------------------------------------------
+
+    private function ids(array $ids)
+    {
+        return array_map(function ($id) {
+            return array('id' => $id);
+        }, $ids);
+    }
+
+    public function testConSoloSimplificadaYNormalLaSimplificadaVaPrimero()
+    {
+        $this->assertSame(
+            array('SIMPLIFIED_TRANSFER', 'REGULAR_TRANSFER'),
+            KhipuMethods::accountMethodIds($this->ids(array('REGULAR_TRANSFER', 'SIMPLIFIED_TRANSFER')))
+        );
+        $this->assertSame(
+            array('SIMPLIFIED_TRANSFER', 'REGULAR_TRANSFER'),
+            KhipuMethods::accountMethodIds($this->ids(array('SIMPLIFIED_TRANSFER', 'REGULAR_TRANSFER')))
+        );
+    }
+
+    public function testLosDemasMediosQuedanEnMedioEnElOrdenDeKhipu()
+    {
+        // "x simplificada manual" -> "simplificada x manual"
+        $this->assertSame(
+            array('SIMPLIFIED_TRANSFER', 'LIGOPAY', 'REGULAR_TRANSFER'),
+            KhipuMethods::accountMethodIds($this->ids(array('LIGOPAY', 'SIMPLIFIED_TRANSFER', 'REGULAR_TRANSFER')))
+        );
+        // La normal primero y la simplificada última en la respuesta: se invierten sin tocar el medio del centro.
+        $this->assertSame(
+            array('SIMPLIFIED_TRANSFER', 'LIGOPAY', 'REGULAR_TRANSFER'),
+            KhipuMethods::accountMethodIds($this->ids(array('REGULAR_TRANSFER', 'LIGOPAY', 'SIMPLIFIED_TRANSFER')))
+        );
+        // Varios en el centro conservan su orden relativo.
+        $this->assertSame(
+            array('SIMPLIFIED_TRANSFER', 'B', 'LIGOPAY', 'A', 'REGULAR_TRANSFER'),
+            KhipuMethods::accountMethodIds($this->ids(array('B', 'REGULAR_TRANSFER', 'LIGOPAY', 'SIMPLIFIED_TRANSFER', 'A')))
+        );
+    }
+
+    public function testLasDosReglasSonIndependientes()
+    {
+        // Sin simplificada: la normal igual va al final.
+        $this->assertSame(
+            array('LIGOPAY', 'REGULAR_TRANSFER'),
+            KhipuMethods::accountMethodIds($this->ids(array('REGULAR_TRANSFER', 'LIGOPAY')))
+        );
+        // Sin normal: la simplificada igual va primero.
+        $this->assertSame(
+            array('SIMPLIFIED_TRANSFER', 'LIGOPAY'),
+            KhipuMethods::accountMethodIds($this->ids(array('LIGOPAY', 'SIMPLIFIED_TRANSFER')))
+        );
+        // Un solo medio.
+        $this->assertSame(array('REGULAR_TRANSFER'), KhipuMethods::accountMethodIds($this->ids(array('REGULAR_TRANSFER'))));
+    }
+
+    public function testElOrdenTambienSeAplicaALasFilasDelCheckout()
+    {
+        $methods = $this->ids(array('REGULAR_TRANSFER', 'LIGOPAY', 'SIMPLIFIED_TRANSFER', 'DIRECT_DEBIT'));
+
+        $this->assertSame(
+            array('SIMPLIFIED_TRANSFER', 'LIGOPAY', 'REGULAR_TRANSFER'),
+            KhipuMethods::visibleMethodIds($methods, null)
+        );
+        // Con una selección guardada el orden es el mismo, solo con los marcados.
+        $this->assertSame(
+            array('SIMPLIFIED_TRANSFER', 'REGULAR_TRANSFER'),
+            KhipuMethods::visibleMethodIds($methods, '["REGULAR_TRANSFER","SIMPLIFIED_TRANSFER"]')
+        );
+    }
+
     // --- visibleMethodIds --------------------------------------------------
 
     public function testUnMedioSinControladorMarcadoNoGeneraFila()
     {
         $methods = array(array('id' => 'REGULAR_TRANSFER'), array('id' => 'ALGUN_MEDIO_NUEVO'));
 
-        $this->assertSame(array('REGULAR_TRANSFER', 'ALGUN_MEDIO_NUEVO'), KhipuMethods::accountMethodIds($methods));
+        $this->assertSame(array('ALGUN_MEDIO_NUEVO', 'REGULAR_TRANSFER'), KhipuMethods::accountMethodIds($methods));
         $this->assertSame(array('REGULAR_TRANSFER'), KhipuMethods::visibleMethodIds($methods, null));
         $this->assertSame(array('REGULAR_TRANSFER'), KhipuMethods::visibleMethodIds($methods, '["REGULAR_TRANSFER","ALGUN_MEDIO_NUEVO"]'));
     }
@@ -132,7 +203,7 @@ class KhipuMethodsTest extends TestCase
         $methods = array(array('id' => 'REGULAR_TRANSFER'), array('id' => 'LIGOPAY'));
 
         $this->assertSame(array('LIGOPAY'), KhipuMethods::visibleMethodIds($methods, '["LIGOPAY"]'));
-        $this->assertSame(array('REGULAR_TRANSFER', 'LIGOPAY'), KhipuMethods::visibleMethodIds($methods, null));
+        $this->assertSame(array('LIGOPAY', 'REGULAR_TRANSFER'), KhipuMethods::visibleMethodIds($methods, null));
         $this->assertSame(array(), KhipuMethods::visibleMethodIds($methods, '[]'));
     }
 
@@ -140,7 +211,7 @@ class KhipuMethodsTest extends TestCase
     {
         $methods = array(array('id' => 'NAVE'), array('id' => 'SIMPLIFIED_TRANSFER'));
 
-        $this->assertSame(array('NAVE', 'SIMPLIFIED_TRANSFER'), KhipuMethods::visibleMethodIds($methods, null));
+        $this->assertSame(array('SIMPLIFIED_TRANSFER', 'NAVE'), KhipuMethods::visibleMethodIds($methods, null));
         $this->assertSame(array('NAVE'), KhipuMethods::visibleMethodIds($methods, '["NAVE"]'));
     }
 
